@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { reviewQueue } from "@/services/governance";
-import { createSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase } from "@/lib/supabase/server";
 import { PageHeader, Table, Empty, Badge } from "@/components/ui";
 import { Flash } from "@/components/Flash";
 import { assignReviewerAction } from "@/app/actions";
@@ -12,15 +12,32 @@ export const metadata = { title: "Review assignments" };
 export default async function Reviews({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
   const sp = await searchParams;
   const q = await reviewQueue();
-  const supabase = await createSupabase();
-  const { data: userRoles, error: reviewerError } = await supabase.from("user_roles")
-    .select("user_id, roles!inner(key, role_permissions(permission_key)), profiles(full_name)");
-  if (reviewerError) throw reviewerError;
-
   const reviewerMap = new Map<string, string>();
-  for (const row of (userRoles ?? []) as any[]) {
-    if (row.roles?.role_permissions?.some((permission: any) => permission.permission_key === "course.review.assigned")) {
-      reviewerMap.set(row.user_id, row.profiles?.full_name || "Reviewer");
+  if (q.length) {
+    try {
+      // The queue is already permission-checked by reviewQueue(). Build the
+      // optional assignment list from flat reads so a PostgREST embed/RLS
+      // relationship failure cannot take down the review page.
+      const supabase = createAdminSupabase();
+      const { data: roles, error: rolesError } = await supabase.from("roles")
+        .select("id, role_permissions!inner(permission_key)")
+        .eq("role_permissions.permission_key", "course.review.assigned");
+      if (rolesError) throw rolesError;
+      const roleIds = (roles ?? []).map((role: { id: string }) => role.id);
+      if (roleIds.length) {
+        const { data: assignments, error: assignmentsError } = await supabase.from("user_roles")
+          .select("user_id").in("role_id", roleIds);
+        if (assignmentsError) throw assignmentsError;
+        const userIds = [...new Set((assignments ?? []).map((assignment: { user_id: string }) => assignment.user_id))];
+        if (userIds.length) {
+          const { data: profiles, error: profilesError } = await supabase.from("profiles")
+            .select("id, full_name").in("id", userIds);
+          if (profilesError) throw profilesError;
+          for (const profile of profiles ?? []) reviewerMap.set(profile.id, profile.full_name || "Reviewer");
+        }
+      }
+    } catch (error) {
+      console.error("[admin:reviewer-directory]", error);
     }
   }
   const reviewers = [...reviewerMap.entries()];

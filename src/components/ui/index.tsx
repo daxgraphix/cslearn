@@ -18,10 +18,10 @@ export function Badge({ status, children }: { status: string; children?: React.R
 }
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: React.ReactNode }) {
   return (
-    <div className="mb-6 flex flex-col gap-3 border-b border-surface-line pb-4 sm:flex-row sm:items-end sm:justify-between">
-      <div className="min-w-0"><h1 className="break-words text-2xl font-semibold leading-tight tracking-tight sm:text-[1.75rem]">{title}</h1>{subtitle && <p className="mt-1.5 max-w-3xl text-sm leading-6 text-ink-soft">{subtitle}</p>}</div>
+    <header className="mb-6 flex scroll-mt-24 flex-col gap-3 border-b border-surface-line pb-5 sm:flex-row sm:items-end sm:justify-between">
+      <div className="min-w-0"><h1 className="break-words text-balance text-2xl font-semibold leading-tight tracking-tight text-ink sm:text-[1.75rem]">{title}</h1>{subtitle && <p className="mt-1.5 max-w-3xl text-sm leading-6 text-ink-soft">{subtitle}</p>}</div>
       {actions && <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">{actions}</div>}
-    </div>
+    </header>
   );
 }
 export function Empty({ title, hint, href, cta }: { title: string; hint?: string; href?: string; cta?: string }) {

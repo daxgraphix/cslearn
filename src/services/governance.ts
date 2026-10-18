@@ -21,12 +21,38 @@ export async function reviewQueue() {
   // so RLS on course content cannot silently hide submissions from reviewers.
   const supabase = createAdminSupabase();
   let q = supabase.from("course_submissions")
-    .select("id, created_at, note, assigned_reviewer_id, submitted_by, course_versions(id, title, version_number, course_id, courses(slug, owner_id, course_instructors(user_id)))")
+    .select("id, version_id, created_at, note, assigned_reviewer_id, submitted_by")
     .neq("status", "closed").order("created_at");
   if (!user.permissions.has("course.review.any")) q = q.or(`assigned_reviewer_id.is.null,assigned_reviewer_id.eq.${user.id}`);
   const { data, error } = await q;
   if (error) throw error;
-  return (data ?? []).filter((submission: any) => {
+  const submissions = (data ?? []) as { id: string; version_id: string; created_at: string; note: string | null; assigned_reviewer_id: string | null; submitted_by: string }[];
+  const versionIds = [...new Set(submissions.map((submission) => submission.version_id))];
+  if (!versionIds.length) return [];
+  const { data: versions, error: versionsError } = await supabase.from("course_versions")
+    .select("id, title, version_number, course_id").in("id", versionIds);
+  if (versionsError) throw versionsError;
+  const versionRows = (versions ?? []) as { id: string; title: string; version_number: number; course_id: string }[];
+  const courseIds = [...new Set(versionRows.map((version) => version.course_id))];
+  let courseRows: { id: string; slug: string; owner_id: string }[] = [];
+  let instructorRows: { course_id: string; user_id: string }[] = [];
+  if (courseIds.length) {
+    const { data: courses, error: coursesError } = await supabase.from("courses").select("id, slug, owner_id").in("id", courseIds);
+    if (coursesError) throw coursesError;
+    courseRows = (courses ?? []) as { id: string; slug: string; owner_id: string }[];
+    const { data: instructors, error: instructorsError } = await supabase.from("course_instructors").select("course_id, user_id").in("course_id", courseIds);
+    if (instructorsError) throw instructorsError;
+    instructorRows = (instructors ?? []) as { course_id: string; user_id: string }[];
+  }
+  const courseById = new Map(courseRows.map((course) => [course.id, {
+    ...course,
+    course_instructors: instructorRows.filter((instructor) => instructor.course_id === course.id),
+  }]));
+  const versionById = new Map(versionRows.map((version) => [version.id, {
+    ...version, courses: courseById.get(version.course_id),
+  }]));
+  return submissions.map((submission) => ({ ...submission, course_versions: versionById.get(submission.version_id) }))
+    .filter((submission: any) => {
     const course = submission.course_versions?.courses;
     return submission.submitted_by !== user.id && course?.owner_id !== user.id
       && !(course?.course_instructors ?? []).some((instructor: any) => instructor.user_id === user.id);
