@@ -46,11 +46,11 @@ export async function Shell({ portal, portals, name, children }: { portal: Porta
   const t = await getT();
   return (
     <div className="flex min-h-screen bg-surface-muted/30">
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto border-r border-surface-line bg-white px-3 py-4 md:flex" aria-label="Primary">
-        <Link href="/" className="mb-5 flex items-center gap-2 px-3 text-lg font-semibold text-brand">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto border-r border-surface-line bg-white px-3 py-5 md:flex" aria-label="Primary">
+        <Link href="/" className="mb-7 flex items-center gap-2 px-3 text-lg font-semibold text-brand">
           <span className="grid h-8 w-10 place-items-center rounded-md border-2 border-ok text-[9px] font-bold">CSGO</span>{t("app.name")}
         </Link>
-        <p className="px-3 pb-2 text-xs text-ink-faint">{TITLES[portal]}</p>
+        <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-faint">{TITLES[portal]}</p>
         <nav className="flex flex-1 flex-col gap-5">
           {NAV[portal].map((s) => (
             <div key={s.title}>
@@ -61,8 +61,8 @@ export async function Shell({ portal, portals, name, children }: { portal: Porta
         </nav>
         {portals.length > 1 && (
           <div className="mt-4 border-t border-surface-line pt-3">
-            <p className="px-3 pb-1 text-xs text-ink-faint">Switch workspace</p>
-            <ul>{portals.filter((p) => p !== portal).map((p) => <li key={p}><Link className="block rounded-lg px-3 py-1.5 text-sm text-ink-soft hover:bg-surface-muted" href={`/${p === "support" ? "support/queue" : p + "/dashboard"}`}>{TITLES[p]}</Link></li>)}</ul>
+            <p className="px-3 pb-1 text-xs font-medium text-ink-faint">Switch workspace</p>
+            <ul className="space-y-0.5">{portals.filter((p) => p !== portal).map((p) => <li key={p}><Link className="flex min-h-10 items-center justify-between rounded-lg px-3 py-2 text-sm text-ink-soft transition-colors hover:bg-surface-muted hover:text-ink" href={`/${p === "support" ? "support/queue" : p + "/dashboard"}`}><span>{TITLES[p]}</span><span aria-hidden="true" className="text-ink-faint">↗</span></Link></li>)}</ul>
           </div>
         )}
         <div className="mt-3 flex items-center justify-between gap-2 border-t border-surface-line px-3 pt-3 text-sm">
@@ -71,12 +71,22 @@ export async function Shell({ portal, portals, name, children }: { portal: Porta
         </div>
       </aside>
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-surface-line bg-white px-4 py-2.5 md:hidden">
+        <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-surface-line bg-white/95 px-4 py-2.5 backdrop-blur md:px-8">
           <div className="flex min-w-0 items-center gap-2.5">
             <Link href="/" className="grid h-8 w-10 shrink-0 place-items-center rounded-md border-2 border-ok text-[9px] font-bold text-brand" aria-label="CSGO home">CSGO</Link>
             <span className="truncate text-sm font-semibold text-brand">{TITLES[portal]}</span>
           </div>
-          <details className="relative">
+          <div className="hidden min-w-0 items-center gap-4 md:flex">
+            {portals.length > 1 && <details className="relative">
+              <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-lg border border-surface-line px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-muted" aria-label={`Current workspace: ${TITLES[portal]}. Switch workspace`}>Switch workspace <span className="text-ink-faint">·</span><span className="max-w-32 truncate text-ink-soft">{TITLES[portal]}</span></summary>
+              <div className="absolute right-0 top-12 z-30 min-w-56 rounded-xl border border-surface-line bg-white p-2 shadow-card">
+                {portals.filter((p) => p !== portal).map((p) => <Link key={p} className="block rounded-lg px-3 py-2 text-sm text-ink-soft hover:bg-surface-muted hover:text-ink" href={`/${p === "support" ? "support/queue" : p + "/dashboard"}`}>{TITLES[p]}</Link>)}
+              </div>
+            </details>}
+            <span className="max-w-56 truncate text-sm text-ink-soft" title={name}>{name}</span>
+            <form action={logoutAction}><button className="btn-outline py-2">{t("nav.logout")}</button></form>
+          </div>
+          <details className="relative md:hidden">
             <summary aria-label={`Open ${TITLES[portal]} navigation`} className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-lg px-3 text-sm font-medium hover:bg-surface-muted"><Menu size={18} aria-hidden="true" />Menu</summary>
             <div className="absolute right-0 top-12 z-30 max-h-[80vh] w-72 overflow-y-auto rounded-lg border border-surface-line bg-white p-3 shadow-card">
               <nav aria-label="Primary">
@@ -96,11 +106,12 @@ export async function Shell({ portal, portals, name, children }: { portal: Porta
             </div>
           </details>
         </header>
-        <main id="main" className="min-w-0 flex-1 p-4 md:p-8">{children}</main>
+        <main id="main" className="mx-auto w-full min-w-0 max-w-[1600px] flex-1 p-4 md:p-8">{children}</main>
         <footer className="mt-auto border-t border-surface-line bg-white">
           <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-4 text-xs text-ink-faint sm:flex-row sm:items-center sm:justify-between md:px-8">
             <span>CSGO · {TITLES[portal]} workspace</span>
             <nav aria-label="Workspace footer" className="flex flex-wrap gap-x-5 gap-y-2">
+              <Link href={`/${portal === "support" ? "support/queue" : portal + "/dashboard"}`} className="hover:text-brand">Workspace home</Link>
               <Link href="/courses" className="hover:text-brand">Course catalog</Link>
               <Link href="/help" className="hover:text-brand">Help center</Link>
               <Link href="/" className="hover:text-brand">Public site</Link>

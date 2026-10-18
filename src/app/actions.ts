@@ -27,16 +27,24 @@ async function exec(path: string, fn: () => Promise<unknown>, after?: string | (
 }
 const s = (f: FormData, k: string) => String(f.get(k) ?? "");
 const clientIp = async () => (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+function safeAuthNext(value: string) {
+  if (!value.startsWith("/") || value.startsWith("//")) return "/learner/dashboard";
+  try {
+    const target = new URL(value, "https://auth.local");
+    return target.origin === "https://auth.local" ? `${target.pathname}${target.search}${target.hash}` : "/learner/dashboard";
+  } catch { return "/learner/dashboard"; }
+}
 
 // ---------- auth ----------
 export async function registerAction(formData: FormData) {
+  const next = safeAuthNext(s(formData, "next"));
   const rl = rateLimit(`register:${await clientIp()}`, 5, 10 * 60_000);
-  if (!rl.ok) redirect(`/register?error=${encodeURIComponent("For your security, signup is temporarily paused. Wait a few minutes and try again.")}`);
+  if (!rl.ok) redirect(`/register?error=${encodeURIComponent("For your security, signup is temporarily paused. Wait a few minutes and try again.")}&next=${encodeURIComponent(next)}`);
   const parsed = registerSchema.safeParse({ fullName: s(formData, "fullName"), email: s(formData, "email"), password: s(formData, "password"), locale: s(formData, "locale") || "en" });
   if (!parsed.success) {
     const field = parsed.error.issues[0]?.path[0];
     const message = field === "email" ? "Enter a valid email address." : field === "password" ? "Use a password between 10 and 128 characters." : "Enter your name using at least 2 characters.";
-    redirect(`/register?error=${encodeURIComponent(message)}`);
+    redirect(`/register?error=${encodeURIComponent(message)}&next=${encodeURIComponent(next)}`);
   }
   let failed = false;
   let signedIn = false;
@@ -44,24 +52,25 @@ export async function registerAction(formData: FormData) {
     const supabase = await createSupabase();
     const { data, error } = await supabase.auth.signUp({
       email: parsed.data.email, password: parsed.data.password,
-      options: { data: { full_name: parsed.data.fullName, locale: parsed.data.locale }, emailRedirectTo: new URL("/auth/callback", getSiteUrl()).toString() },
+      options: { data: { full_name: parsed.data.fullName, locale: parsed.data.locale }, emailRedirectTo: new URL(`/auth/callback?next=${encodeURIComponent(next)}`, getSiteUrl()).toString() },
     });
     failed = Boolean(error);
     signedIn = Boolean(data.session);
   } catch {
     failed = true;
   }
-  if (failed) redirect(`/register?error=${encodeURIComponent("We couldn’t submit your signup right now. Check your connection and try again. If you already signed up, try logging in or resetting your password.")}`);
-  if (signedIn) redirect("/learner/dashboard");
-  redirect(`/register?notice=${encodeURIComponent("Your signup request was received. Check your inbox and spam folder for a verification link before logging in.")}`);
+  if (failed) redirect(`/register?error=${encodeURIComponent("We couldn't submit your signup right now. Check your connection and try again. If you already signed up, try logging in or resetting your password.")}&next=${encodeURIComponent(next)}`);
+  if (signedIn) redirect(next);
+  redirect(`/register?notice=${encodeURIComponent("Your signup request was received. Check your inbox and spam folder for a verification link before logging in.")}&next=${encodeURIComponent(next)}`);
 }
 
 export async function loginAction(formData: FormData) {
+  const next = safeAuthNext(s(formData, "next"));
   const ip = await clientIp();
   const parsed = loginSchema.safeParse({ email: s(formData, "email"), password: s(formData, "password") });
-  if (!parsed.success) redirect(`/login?error=${encodeURIComponent("Enter a valid email address and password.")}`);
+  if (!parsed.success) redirect(`/login?error=${encodeURIComponent("Enter a valid email address and password.")}&next=${encodeURIComponent(next)}`);
   const rl = rateLimit(`login:${ip}:${parsed.data.email}`, 8, 10 * 60_000);
-  if (!rl.ok) redirect(`/login?error=${encodeURIComponent("Too many sign-in attempts. Wait a few minutes before trying again.")}`);
+  if (!rl.ok) redirect(`/login?error=${encodeURIComponent("Too many sign-in attempts. Wait a few minutes before trying again.")}&next=${encodeURIComponent(next)}`);
   let failed = false;
   try {
     const supabase = await createSupabase();
@@ -70,9 +79,8 @@ export async function loginAction(formData: FormData) {
   } catch {
     failed = true;
   }
-  if (failed) redirect(`/login?error=${encodeURIComponent("We couldn’t sign you in. Check your email and password, and make sure your email is verified.")}`);
-  const next = s(formData, "next");
-  redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/learner/dashboard");
+  if (failed) redirect(`/login?error=${encodeURIComponent("We couldn't sign you in. Check your email and password, and make sure your email is verified.")}&next=${encodeURIComponent(next)}`);
+  redirect(next);
 }
 
 export async function logoutAction() {
@@ -82,16 +90,23 @@ export async function logoutAction() {
 }
 export async function requestPasswordResetAction(formData: FormData) {
   const rl = rateLimit(`reset:${await clientIp()}`, 3, 15 * 60_000);
-  if (rl.ok) {
-    try {
-      const redirectTo = new URL("/auth/callback?next=/reset-password", getSiteUrl()).toString();
-      await (await createSupabase()).auth.resetPasswordForEmail(s(formData, "email"), { redirectTo });
-    } catch { /* Keep recovery responses neutral when the auth service is unavailable. */ }
-  }
+  const email = s(formData, "email").trim().toLowerCase();
+  if (!rl.ok) redirect(`/login?error=${encodeURIComponent("Too many reset requests. Wait a few minutes and try again.")}`);
+  if (!email) redirect(`/login?error=${encodeURIComponent("Enter the email address for your account.")}`);
+  let failed = false;
+  try {
+    const redirectTo = new URL("/auth/callback?next=%2Freset-password", getSiteUrl()).toString();
+    const { error } = await (await createSupabase()).auth.resetPasswordForEmail(email, { redirectTo });
+    failed = Boolean(error);
+  } catch { failed = true; }
+  if (failed) redirect(`/login?error=${encodeURIComponent("We couldn't send a reset email right now. Check your connection and try again.")}`);
   redirect(`/login?notice=${encodeURIComponent("If an account matches that email, recovery instructions will be sent. Check your inbox and spam folder.")}`);
 }
 export async function updatePasswordAction(formData: FormData) {
   const password = s(formData, "password");
+  if (password !== s(formData, "confirmPassword")) {
+    redirect(`/reset-password?error=${encodeURIComponent("The passwords do not match. Enter them again.")}`);
+  }
   if (password.length < 10 || password.length > 128) {
     redirect(`/reset-password?error=${encodeURIComponent("Use a password between 10 and 128 characters.")}`);
   }

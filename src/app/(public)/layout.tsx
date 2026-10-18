@@ -2,9 +2,13 @@ import Link from "next/link";
 import { Menu } from "lucide-react";
 import { getT } from "@/i18n";
 import { getSessionUser } from "@/lib/auth";
+import { portalsFor, type Portal } from "@/lib/permissions";
 
 export default async function PublicLayout({ children }: { children: React.ReactNode }) {
   const t = await getT(); const user = await getSessionUser().catch(() => null);
+  const portals = user ? portalsFor(user.roles, user.permissions, user.orgManagerOf.length > 0) : [];
+  const preferredPortal = (["admin", "reviewer", "instructor", "organization", "support", "learner"] as Portal[]).find((portal) => portals.includes(portal)) ?? "learner";
+  const dashboardHref = `/${preferredPortal === "support" ? "support/queue" : preferredPortal + "/dashboard"}`;
   return (
     <div className="flex min-h-screen flex-col bg-[#fbfcfb]">
       <header className="sticky top-0 z-40 border-b border-surface-line/80 bg-white/95 shadow-[0_4px_18px_rgba(23,45,39,0.04)] backdrop-blur">
@@ -21,7 +25,7 @@ export default async function PublicLayout({ children }: { children: React.React
           </nav>
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <div className="hidden items-center gap-2 sm:flex">
-              {user ? <Link className="btn-primary" href="/learner/dashboard">{t("nav.dashboard")}</Link> : <>
+              {user ? <Link className="btn-primary" href={dashboardHref}>{t("nav.dashboard")}</Link> : <>
                 <Link className="btn-ghost" href="/login">{t("nav.login")}</Link>
                 <Link className="btn-primary" href="/register">{t("nav.register")}</Link>
               </>}
@@ -37,7 +41,7 @@ export default async function PublicLayout({ children }: { children: React.React
                 <Link href="/help" className="rounded-md px-3 py-2.5 text-sm text-ink-soft hover:bg-surface-muted">{t("nav.help")}</Link>
                 <Link href="/verify" className="rounded-md px-3 py-2.5 text-sm text-ink-soft hover:bg-surface-muted">{t("cert.verify")}</Link>
                 <div className="mt-2 border-t border-surface-line pt-2 sm:hidden">
-                  {user ? <Link className="btn-primary w-full" href="/learner/dashboard">{t("nav.dashboard")}</Link> : <div className="grid gap-1">
+                  {user ? <Link className="btn-primary w-full" href={dashboardHref}>{t("nav.dashboard")}</Link> : <div className="grid gap-1">
                     <Link className="btn-ghost justify-start" href="/login">{t("nav.login")}</Link>
                     <Link className="btn-primary" href="/register">{t("nav.register")}</Link>
                   </div>}
@@ -45,7 +49,7 @@ export default async function PublicLayout({ children }: { children: React.React
               </nav>
             </details>
             <div className="sm:hidden">
-              {user ? <Link className="btn-primary px-3" href="/learner/dashboard">{t("nav.dashboard")}</Link> : <Link className="btn-primary px-3" href="/register">{t("nav.register")}</Link>}
+              {user ? <Link className="btn-primary px-3" href={dashboardHref}>{t("nav.dashboard")}</Link> : <Link className="btn-primary px-3" href="/register">{t("nav.register")}</Link>}
             </div>
           </div>
         </div>

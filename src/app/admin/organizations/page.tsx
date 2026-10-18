@@ -1,6 +1,6 @@
 import { createSupabase } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/auth";
-import { PageHeader, Table, Badge } from "@/components/ui";
+import { PageHeader, Table, Badge, Empty } from "@/components/ui";
 import { slugify } from "@/lib/utils";
 import { revalidatePath } from "next/cache";
 export const metadata = { title: "Organizations" };
@@ -19,7 +19,7 @@ async function create(f: FormData) {
 export default async function Orgs() {
   await requirePermission("org.read.any");
   const { data } = await (await createSupabase()).from("organizations").select("id, name, slug, status, organization_memberships(count)").order("created_at", { ascending: false });
-  return (<><PageHeader title="Organizations" />
+  return (<><PageHeader title="Organizations" subtitle="Set up partner institutions and connect a registered manager." />
     <form action={create} className="card mb-6 grid max-w-3xl gap-3 p-5 sm:grid-cols-2"><input name="name" className="input" placeholder="Institution name" required aria-label="Name" /><input name="email" type="email" className="input" placeholder="Contact email" aria-label="Contact email" /><input name="managerEmail" type="email" className="input sm:col-span-2" placeholder="Manager's account email (must be registered)" aria-label="Manager email" /><button className="btn-primary sm:col-span-2">Create organization</button></form>
-    <Table head={["Name", "Slug", "Members", "Status"]}>{(data as any[] ?? []).map((o) => <tr key={o.id}><td className="table-td font-medium">{o.name}</td><td className="table-td">{o.slug}</td><td className="table-td">{o.organization_memberships?.[0]?.count ?? 0}</td><td className="table-td"><Badge status={o.status} /></td></tr>)}</Table></>);
+    {(data as any[] ?? []).length === 0 ? <Empty title="No organizations yet" hint="Create an organization above to start managing partner learning programs." /> : <Table head={["Name", "Slug", "Members", "Status"]}>{(data as any[] ?? []).map((o) => <tr key={o.id}><td className="table-td font-medium">{o.name}</td><td className="table-td">{o.slug}</td><td className="table-td">{o.organization_memberships?.[0]?.count ?? 0}</td><td className="table-td"><Badge status={o.status} /></td></tr>)}</Table>}</>);
 }

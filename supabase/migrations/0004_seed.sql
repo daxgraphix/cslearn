@@ -49,7 +49,7 @@ select _grant('assessment_moderator', array['grade.write.any','grade.override'])
 select _grant('auditor', array['audit.read','report.read']);
 select _grant('enrollment_manager', array['enrollment.manage','enrollment.read.any']);
 select _grant('admin', array['course.create','course.update.any','course.read.any','course.publish','course.unpublish','user.read','user.suspend',
-  'role.read','role.assign','enrollment.read.any','enrollment.manage','certificate.read.any','support.read','support.reply','report.read','ops.read',
+  'course.review.any','role.read','role.assign','enrollment.read.any','enrollment.manage','certificate.read.any','support.read','support.reply','report.read','ops.read',
   'org.read.any','org.manage','category.manage','settings.read','audit.read','finance.read']);
 select _grant('owner', array(select key from permissions));
 drop function _grant(text, text[]);

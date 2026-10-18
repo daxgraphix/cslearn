@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { overview } from "@/services/admin";
-import { PageHeader, Stat } from "@/components/ui";
+import { PageHeader } from "@/components/ui";
 export const metadata = { title: "Admin dashboard" };
 export default async function Dash() {
   const o = await overview();
@@ -9,27 +9,41 @@ export default async function Dash() {
   const openReviews = Number(o?.open_reviews ?? 0);
   const deadJobs = Number(o?.dead_jobs ?? 0);
   const completionRate = enrollments > 0 ? Math.round((completions / enrollments) * 100) : 0;
+  const count = (value: unknown) => new Intl.NumberFormat("en-KE").format(Number(value ?? 0));
   const actions = [
-    { title: "Users", href: "/admin/users", text: "Manage access and platform roles" },
-    { title: "Courses", href: "/admin/courses", text: "Review published and draft courses" },
-    { title: "Reviews", href: "/admin/reviews", text: "Resolve learner submissions and reviews" },
-    { title: "Operations", href: "/admin/operations", text: "Monitor job health and retries" },
+    { title: "Review courses", href: "/admin/reviews", text: openReviews ? `${count(openReviews)} ${openReviews === 1 ? "submission" : "submissions"} waiting for a decision` : "The review queue is clear" },
+    { title: "Publish courses", href: "/admin/courses", text: "Publish approved versions and manage the catalog" },
+    { title: "Manage users", href: "/admin/users", text: "Accounts, access, and role assignments" },
+    { title: "Check operations", href: "/admin/operations", text: deadJobs ? `${count(deadJobs)} jobs need attention` : "Queue health and background jobs" },
+    { title: "Manage roles", href: "/admin/roles", text: "Review permission bundles and role access" },
+  ];
+  const metrics = [
+    { label: "Users", value: o?.users, href: "/admin/users", hint: "Manage accounts" },
+    { label: "Active learners · 30 days", value: o?.learners_30d, href: "/admin/users", hint: "Browse user accounts" },
+    { label: "Published courses", value: o?.published_courses, href: "/admin/courses", hint: "Open course publishing" },
+    { label: "Enrollments", value: o?.enrollments, href: "/admin/enrollments", hint: "View learner access" },
+    { label: "Completions", value: o?.completions, href: "/admin/reports", hint: "View learning reports" },
+    { label: "Valid certificates", value: o?.certificates, href: "/admin/certificates", hint: "Manage certificates" },
+    { label: "Reviews waiting", value: o?.open_reviews, href: "/admin/reviews", hint: openReviews ? "Review submissions" : "Queue is clear", attention: openReviews > 0 },
+    { label: "Dead jobs", value: o?.dead_jobs, href: "/admin/operations?status=dead", hint: deadJobs ? "Inspect jobs" : "No retries needed", attention: deadJobs > 0 },
   ];
   return (
     <>
-      <PageHeader title="Administration" subtitle="Platform health at a glance" />
+      <PageHeader title="Administration" subtitle="A live overview of learning activity, pending decisions, and platform health." />
       {!o ? <p className="text-ink-soft">You do not have report access.</p> : (
         <div className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Stat label="Users" value={o.users} />
-            <Stat label="Active learners (30 days)" value={o.learners_30d} />
-            <Stat label="Published courses" value={o.published_courses} />
-            <Stat label="Enrollments" value={o.enrollments} />
-            <Stat label="Completions" value={o.completions} />
-            <Stat label="Valid certificates" value={o.certificates} />
-            <Stat label="Reviews waiting" value={o.open_reviews} />
-            <Stat label="Dead jobs" value={o.dead_jobs} />
-          </div>
+          <section aria-labelledby="overview-heading">
+            <div className="mb-3 flex flex-wrap items-end justify-between gap-2"><div><h2 id="overview-heading" className="text-lg font-semibold">Platform overview</h2><p className="mt-1 text-sm text-ink-soft">Select a metric to open its management page.</p></div></div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {metrics.map((metric) => <Link key={metric.label} href={metric.href} aria-label={`${metric.label}: ${count(metric.value)}. ${metric.hint}.`} className={`group rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${metric.attention ? "ring-1 ring-amber-300" : ""}`}>
+                <div className="card h-full border border-surface-line p-4 transition-all group-hover:-translate-y-0.5 group-hover:border-brand/40 group-hover:shadow-card sm:p-5">
+                  <p className="text-sm font-medium text-ink-soft">{metric.label}</p>
+                  <p className={`mt-2 text-3xl font-semibold tabular-nums ${metric.attention ? "text-amber-700" : "text-ink"}`}>{count(metric.value)}</p>
+                  <p className="mt-2 text-xs text-brand">{metric.hint} <span aria-hidden="true">→</span></p>
+                </div>
+              </Link>)}
+            </div>
+          </section>
 
           <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
             <div className="card p-5">
@@ -53,21 +67,18 @@ export default async function Dash() {
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">Operational signals</p>
               <h2 className="mt-2 text-xl font-semibold">Performance and risk</h2>
               <div className="mt-4 space-y-4">
-                <div>
-                  <div className="mb-1 flex items-center justify-between gap-3 text-sm"><span className="text-ink-soft">Open reviews</span><span className="shrink-0 font-medium tabular-nums text-ink">{openReviews}</span></div>
-                  <div className="h-2 rounded-full bg-surface-muted" role="progressbar" aria-label="Open reviews relative to a 30-item queue threshold" aria-valuemin={0} aria-valuemax={30} aria-valuenow={Math.min(openReviews, 30)}><div className="h-full rounded-full bg-brand transition-[width]" style={{ width: `${Math.min((openReviews / 30) * 100, 100)}%` }} /></div>
-                  <p className="mt-1 text-xs text-ink-faint">Queue reference: 30 items</p>
+                <Link href="/admin/reviews" className="flex items-center justify-between gap-4 rounded-xl border border-surface-line p-4 transition-colors hover:border-brand/40 hover:bg-brand-soft/30">
+                  <span><span className="block text-sm font-medium text-ink">Course reviews</span><span className="mt-1 block text-xs text-ink-soft">{openReviews ? "Submissions need a decision" : "No submissions are waiting"}</span></span>
+                  <span className={`shrink-0 rounded-full px-3 py-1 text-sm font-semibold tabular-nums ${openReviews ? "bg-amber-100 text-amber-800" : "bg-emerald-50 text-emerald-700"}`}>{count(openReviews)}</span>
+                </Link>
+                <div className="rounded-xl border border-surface-line p-4">
+                  <div className="flex items-center justify-between gap-3"><span className="text-sm font-medium text-ink">Enrollment completion</span><span className="shrink-0 text-sm font-semibold tabular-nums text-ink">{enrollments > 0 ? `${completionRate}%` : "Waiting for data"}</span></div>
+                  {enrollments > 0 ? <><div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-muted" role="progressbar" aria-label="Enrollment completion rate" aria-valuemin={0} aria-valuemax={100} aria-valuenow={completionRate}><div className="h-full rounded-full bg-ok transition-[width]" style={{ width: `${completionRate}%` }} /></div><p className="mt-2 text-xs text-ink-soft">{count(completions)} of {count(enrollments)} enrollments completed</p></> : <p className="mt-2 text-xs text-ink-soft">Completion data will appear after learners enroll in courses.</p>}
                 </div>
-                <div>
-                  <div className="mb-1 flex items-center justify-between gap-3 text-sm"><span className="text-ink-soft">Enrollment completion</span><span className="shrink-0 font-medium tabular-nums text-ink">{enrollments > 0 ? `${completionRate}%` : "No data"}</span></div>
-                  <div className="h-2 rounded-full bg-surface-muted" role="progressbar" aria-label="Enrollment completion rate" aria-valuemin={0} aria-valuemax={100} aria-valuenow={completionRate}><div className="h-full rounded-full bg-ok transition-[width]" style={{ width: `${completionRate}%` }} /></div>
-                  <p className="mt-1 text-xs text-ink-faint">{completions} of {enrollments} enrollments completed</p>
-                </div>
-                <div>
-                  <div className="mb-1 flex items-center justify-between gap-3 text-sm"><span className="text-ink-soft">Dead jobs</span><span className="shrink-0 font-medium tabular-nums text-ink">{deadJobs === 0 ? "Clear" : deadJobs}</span></div>
-                  <div className="h-2 rounded-full bg-surface-muted" role="progressbar" aria-label="Dead jobs relative to a 10-job queue threshold" aria-valuemin={0} aria-valuemax={10} aria-valuenow={Math.min(deadJobs, 10)}><div className="h-full rounded-full bg-danger transition-[width]" style={{ width: `${Math.min((deadJobs / 10) * 100, 100)}%` }} /></div>
-                  <p className="mt-1 text-xs text-ink-faint">{deadJobs === 0 ? "No jobs need retry" : "Jobs may need a retry"}</p>
-                </div>
+                <Link href="/admin/operations?status=dead" className="flex items-center justify-between gap-4 rounded-xl border border-surface-line p-4 transition-colors hover:border-brand/40 hover:bg-brand-soft/30">
+                  <span><span className="block text-sm font-medium text-ink">Background jobs</span><span className="mt-1 block text-xs text-ink-soft">{deadJobs ? "Failed jobs need attention" : "No failed jobs need a retry"}</span></span>
+                  <span className={`shrink-0 rounded-full px-3 py-1 text-sm font-semibold tabular-nums ${deadJobs ? "bg-red-50 text-danger" : "bg-emerald-50 text-emerald-700"}`}>{deadJobs ? count(deadJobs) : "Clear"}</span>
+                </Link>
               </div>
             </div>
           </div>

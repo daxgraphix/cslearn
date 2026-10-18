@@ -2,6 +2,7 @@ import Link from "next/link";
 import { loginAction, requestPasswordResetAction } from "@/app/actions";
 import { Flash } from "@/components/Flash";
 import { SubmitButton } from "@/components/SubmitButton";
+import { PasswordField } from "@/components/PasswordField";
 export const metadata = { title: "Log in" };
 export default async function Login({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string; next?: string }> }) {
   const sp = await searchParams;
@@ -10,7 +11,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
       <div className="mb-5">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">Welcome back</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">Log in to continue</h1>
-        <p className="mt-2 text-sm leading-6 text-ink-soft">Sign in to pick up where you left off. New here? Create an account to get started.</p>
+        <p className="mt-2 text-sm leading-6 text-ink-soft">Sign in to continue learning, manage your courses, or review a submission.</p>
       </div>
       <div className="mb-5"><Flash error={sp.error} notice={sp.notice} /></div>
       <form action={loginAction} className="space-y-4">
@@ -21,14 +22,14 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
         </div>
         <div>
           <label className="label" htmlFor="password">Password</label>
-          <input id="password" name="password" type="password" autoComplete="current-password" required className="input" placeholder="••••••••••" />
+          <PasswordField id="password" name="password" autoComplete="current-password" placeholder="Enter your password" />
         </div>
         <SubmitButton className="btn-primary w-full" pendingLabel="Signing in…">Log in</SubmitButton>
       </form>
 
       <div className="mt-4 flex items-center justify-between gap-2 text-sm text-ink-soft">
         <Link href="/courses" className="text-brand hover:underline">Browse courses</Link>
-        <Link href="/register" className="text-brand hover:underline">Create account</Link>
+        <Link href={sp.next ? `/register?next=${encodeURIComponent(sp.next)}` : "/register"} className="text-brand hover:underline">Create account</Link>
       </div>
 
       <details className="mt-4 rounded-xl border border-surface-line bg-surface-muted/60 p-3 text-sm">

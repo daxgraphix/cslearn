@@ -31,7 +31,8 @@ export async function assignReviewer(submissionId: string, reviewerId: string) {
   const admin = createAdminSupabase();
   const { data: has } = await admin.rpc("has_permission", { uid: reviewerId, perm: "course.review.assigned" });
   if (!has) throw new Error("User cannot review courses");
-  await admin.from("course_submissions").update({ assigned_reviewer_id: reviewerId, status: "in_review" }).eq("id", submissionId);
+  const { error } = await admin.from("course_submissions").update({ assigned_reviewer_id: reviewerId, status: "in_review" }).eq("id", submissionId);
+  if (error) throw error;
 }
 
 export async function decide(input: z.input<typeof reviewSchema>) {
