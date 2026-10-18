@@ -13,17 +13,17 @@ function staffReadClient() {
 
 export async function listUsers(search?: string, page = 1) {
   await requirePageAccess("user.read");
-  // This directory is staff-only; authorize above, then use the server-only
-  // service client so nested role rows do not disappear under user_roles RLS.
+  // Load profiles independently of the optional role relation. A relationship
+  // or RLS failure should not make the whole directory unavailable.
   let supabase: any = staffReadClient() ?? await createSupabase();
-  let q = supabase.from("profiles").select("id, full_name, status, created_at, user_roles(roles(key, name))", { count: "exact" });
+  let q = supabase.from("profiles").select("id, full_name, status, created_at", { count: "exact" });
   const term = search?.trim().replace(/[%_]/g, "");
   if (term) q = q.ilike("full_name", `%${term}%`);
   const safePage = Math.max(1, Math.floor(page) || 1);
   let { data, count, error } = await q.order("created_at", { ascending: false }).range((safePage - 1) * 25, safePage * 25 - 1);
   if (error && staffReadClient()) {
     supabase = await createSupabase();
-    q = supabase.from("profiles").select("id, full_name, status, created_at, user_roles(roles(key, name))", { count: "exact" });
+    q = supabase.from("profiles").select("id, full_name, status, created_at", { count: "exact" });
     if (term) q = q.ilike("full_name", `%${term}%`);
     ({ data, count, error } = await q.order("created_at", { ascending: false }).range((safePage - 1) * 25, safePage * 25 - 1));
   }
@@ -31,7 +31,28 @@ export async function listUsers(search?: string, page = 1) {
     console.error("[admin:list-users]", { code: error.code, message: error.message });
     throw new Error("Could not load the user list. Refresh the page and try again.");
   }
-  return { users: data ?? [], total: count ?? 0 };
+  const users = (data ?? []).map((user: any) => ({ ...user, user_roles: [] as any[] }));
+  let rolesAvailable = true;
+  if (users.length) {
+    try {
+      const roleClient: any = staffReadClient() ?? supabase;
+      const { data: assignments, error: assignmentError } = await roleClient
+        .from("user_roles")
+        .select("user_id, roles(key, name)")
+        .in("user_id", users.map((user: any) => user.id));
+      if (assignmentError) throw assignmentError;
+      const byUser = new Map(users.map((user: any) => [user.id, user]));
+      for (const assignment of assignments ?? []) {
+        const role = Array.isArray(assignment.roles) ? assignment.roles[0] : assignment.roles;
+        const user: any = byUser.get(assignment.user_id);
+        if (user && role?.key) user.user_roles.push({ roles: role });
+      }
+    } catch (roleError) {
+      rolesAvailable = false;
+      console.error("[admin:list-user-roles]", roleError);
+    }
+  }
+  return { users, total: count ?? 0, rolesAvailable };
 }
 
 export async function suspend(input: z.input<typeof suspendSchema>) {
