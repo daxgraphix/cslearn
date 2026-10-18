@@ -21,13 +21,19 @@ export type Portal = "learner" | "instructor" | "reviewer" | "admin" | "organiza
 /** Which portals a set of roles/permissions may open (navigation only, never a security boundary). */
 export function portalsFor(roles: RoleKey[], perms: Set<string>, isOrgManager: boolean): Portal[] {
   const out: Portal[] = ["learner"];
-  if (perms.has("course.create") || perms.has("course.update.own")) out.push("instructor");
+  if (perms.has("course.update.own") || perms.has("course.update.any")) out.push("instructor");
   if (perms.has("course.review.assigned") || perms.has("course.review.any")) out.push("reviewer");
   const adminPermission = ["user.read", "report.read", "audit.read", "ops.read", "role.assign", "certificate.read.any", "enrollment.read.any", "course.read.any"];
   if (roles.some((r) => ["owner", "admin", "auditor", "certificate_officer", "enrollment_manager", "assessment_moderator"].includes(r)) || adminPermission.some((permission) => perms.has(permission))) out.push("admin");
   if (perms.has("support.read")) out.push("support");
   if (isOrgManager) out.push("organization");
   return out;
+}
+
+/** Landing destination for an authenticated person, preferring their most operational workspace. */
+export function defaultWorkspacePath(portals: Portal[]): string {
+  const portal = (["admin", "reviewer", "instructor", "organization", "support", "learner"] as Portal[]).find((candidate) => portals.includes(candidate)) ?? "learner";
+  return `/${portal === "support" ? "support/queue" : `${portal}/dashboard`}`;
 }
 
 /** Pure policy check used by unit tests and service guards. Explicit denials always win. */

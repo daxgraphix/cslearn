@@ -29,4 +29,18 @@ For an existing project, do not rerun `schema.sql`. Apply only migrations that h
    Use the full origin, including `https://`, in both Vercel and Supabase. Add `https://your-project.vercel.app/auth/callback` to Supabase Redirect URLs for email verification and password reset links. Bare hostnames can be interpreted as relative paths by Supabase and produce malformed callback URLs.
 4. Confirm the deployment builds and test registration/login, email callback, course browsing, and private file access.
 
+## Password recovery email
+
+In **Authentication → Email Templates → Reset Password**, replace the default one-use confirmation link with an app confirmation page and include the one-time code as a fallback. Email security scanners can consume Supabase confirmation links before the person opens the email; the app's `/auth/confirm` page waits for the person to press Continue before verifying the token.
+
+```html
+<h2>Reset your password</h2>
+<p><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=recovery">Continue to reset your password</a></p>
+<p>Or enter this verification code on the reset password page:</p>
+<p style="font-size: 24px; font-weight: bold; letter-spacing: 0.2em">{{ .Token }}</p>
+<p>If you did not request a password reset, you can ignore this email.</p>
+```
+
+Save the template and request a new reset email. The app verifies the link only after the Continue button is submitted, and the recovery page also accepts the email code. Older emails that have already expired or been consumed need a fresh reset email.
+
 Never commit real environment values. Use the anon/public key in browser-capable settings; the service role key bypasses Row Level Security and must remain a Vercel server-side environment variable.

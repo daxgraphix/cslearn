@@ -8,6 +8,7 @@ import { run } from "@/lib/action";
 import { rateLimit } from "@/lib/rate-limit";
 import { loginSchema, registerSchema, createCourseSchema, courseMetaSchema, reviewSchema, answersSchema } from "@/lib/validation";
 import { requireUser } from "@/lib/auth";
+import { workspacePathForUser } from "@/lib/portal";
 import * as authoring from "@/services/authoring";
 import * as governance from "@/services/governance";
 import * as learning from "@/services/learning";
@@ -65,22 +66,25 @@ export async function registerAction(formData: FormData) {
 }
 
 export async function loginAction(formData: FormData) {
-  const next = safeAuthNext(s(formData, "next"));
+  const requestedNext = s(formData, "next").trim();
+  const next = requestedNext && requestedNext !== "/" ? safeAuthNext(requestedNext) : "";
   const ip = await clientIp();
   const parsed = loginSchema.safeParse({ email: s(formData, "email"), password: s(formData, "password") });
   if (!parsed.success) redirect(`/login?error=${encodeURIComponent("Enter a valid email address and password.")}&next=${encodeURIComponent(next)}`);
   const rl = rateLimit(`login:${ip}:${parsed.data.email}`, 8, 10 * 60_000);
   if (!rl.ok) redirect(`/login?error=${encodeURIComponent("Too many sign-in attempts. Wait a few minutes before trying again.")}&next=${encodeURIComponent(next)}`);
   let failed = false;
+  let userId = "";
   try {
     const supabase = await createSupabase();
-    const { error } = await supabase.auth.signInWithPassword(parsed.data);
+    const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
     failed = Boolean(error);
+    userId = data.user?.id ?? "";
   } catch {
     failed = true;
   }
   if (failed) redirect(`/login?error=${encodeURIComponent("We couldn't sign you in. Check your email and password, and make sure your email is verified.")}&next=${encodeURIComponent(next)}`);
-  redirect(next);
+  redirect(next || (userId ? await workspacePathForUser(userId) : "/learner/dashboard"));
 }
 
 export async function logoutAction() {
@@ -91,16 +95,41 @@ export async function logoutAction() {
 export async function requestPasswordResetAction(formData: FormData) {
   const rl = rateLimit(`reset:${await clientIp()}`, 3, 15 * 60_000);
   const email = s(formData, "email").trim().toLowerCase();
-  if (!rl.ok) redirect(`/login?error=${encodeURIComponent("Too many reset requests. Wait a few minutes and try again.")}`);
-  if (!email) redirect(`/login?error=${encodeURIComponent("Enter the email address for your account.")}`);
+  if (!rl.ok) redirect(`/forgot-password?error=${encodeURIComponent("Too many reset requests. Wait a few minutes and try again.")}`);
+  if (!email) redirect(`/forgot-password?error=${encodeURIComponent("Enter the email address for your account.")}`);
   let failed = false;
   try {
     const redirectTo = new URL("/auth/callback?next=%2Freset-password", getSiteUrl()).toString();
     const { error } = await (await createSupabase()).auth.resetPasswordForEmail(email, { redirectTo });
     failed = Boolean(error);
   } catch { failed = true; }
-  if (failed) redirect(`/login?error=${encodeURIComponent("We couldn't send a reset email right now. Check your connection and try again.")}`);
-  redirect(`/login?notice=${encodeURIComponent("If an account matches that email, recovery instructions will be sent. Check your inbox and spam folder.")}`);
+  if (failed) redirect(`/forgot-password?error=${encodeURIComponent("We couldn't send a reset email right now. Check your connection and try again.")}`);
+  redirect(`/forgot-password?sent=1`);
+}
+export async function verifyRecoveryCodeAction(formData: FormData) {
+  const email = s(formData, "email").trim().toLowerCase();
+  const token = s(formData, "token").replace(/\s/g, "");
+  const rl = rateLimit(`recovery-code:${await clientIp()}`, 6, 15 * 60_000);
+  if (!rl.ok) redirect(`/forgot-password?error=${encodeURIComponent("Too many code attempts. Wait a few minutes and try again.")}`);
+  if (!email || !/^\d{6,8}$/.test(token)) redirect(`/forgot-password?error=${encodeURIComponent("Enter your email and the verification code from the latest reset email.")}`);
+  try {
+    const { error } = await (await createSupabase()).auth.verifyOtp({ email, token, type: "recovery" });
+    if (error) throw error;
+  } catch {
+    redirect(`/forgot-password?error=${encodeURIComponent("That code is invalid or expired. Request a fresh reset email and try again.")}`);
+  }
+  redirect("/reset-password");
+}
+export async function confirmRecoveryLinkAction(formData: FormData) {
+  const tokenHash = s(formData, "tokenHash");
+  if (!tokenHash || tokenHash.length > 512) redirect(`/forgot-password?error=${encodeURIComponent("This reset link is incomplete. Request a new reset email and try again.")}`);
+  try {
+    const { error } = await (await createSupabase()).auth.verifyOtp({ token_hash: tokenHash, type: "recovery" });
+    if (error) throw error;
+  } catch {
+    redirect(`/forgot-password?error=${encodeURIComponent("This reset link has expired or was already used. Request a new one or enter the code from your email.")}`);
+  }
+  redirect("/reset-password");
 }
 export async function updatePasswordAction(formData: FormData) {
   const password = s(formData, "password");
@@ -232,7 +261,16 @@ export async function gradeAction(formData: FormData) {
 // ---------- reviewer / governance ----------
 export async function decideAction(formData: FormData) {
   const id = s(formData, "submissionId");
-  await exec(`/reviewer/reviews/${id}`, () => governance.decide(reviewSchema.parse({ submissionId: id, decision: s(formData, "decision"), summary: s(formData, "summary") })), "/reviewer/queue");
+  const path = `/reviewer/reviews/${id}`;
+  const parsed = reviewSchema.safeParse({ submissionId: id, decision: s(formData, "decision"), summary: s(formData, "summary") });
+  if (!parsed.success) {
+    const summaryIssue = parsed.error.issues.some((issue) => issue.path[0] === "summary");
+    const message = summaryIssue
+      ? "Add a decision summary of at least 3 characters before submitting."
+      : "Choose a valid review decision and try again.";
+    redirect(`${path}?error=${encodeURIComponent(message)}`);
+  }
+  await exec(path, () => governance.decide(parsed.data), "/reviewer/queue");
 }
 export async function commentAction(formData: FormData) {
   const id = s(formData, "submissionId");
@@ -240,6 +278,13 @@ export async function commentAction(formData: FormData) {
 }
 export async function assignReviewerAction(formData: FormData) {
   await exec("/admin/reviews", () => governance.assignReviewer(s(formData, "submissionId"), s(formData, "reviewerId")));
+}
+export async function claimReviewAction(formData: FormData) {
+  await exec("/reviewer/queue", async () => {
+    const claimedId = await governance.claimReview(s(formData, "submissionId"));
+    revalidatePath("/reviewer/dashboard");
+    return claimedId;
+  });
 }
 export async function publishAction(formData: FormData) {
   await exec("/admin/courses", () => governance.publish(s(formData, "versionId")));
@@ -251,15 +296,25 @@ export async function suspendAction(formData: FormData) {
 }
 export async function reinstateAction(formData: FormData) { await exec("/admin/users", () => admin.reinstate(s(formData, "userId"))); }
 export async function roleAction(formData: FormData) {
-  await exec("/admin/users", () => admin.setRole(s(formData, "userId"), s(formData, "role"), s(formData, "mode") === "grant"));
+  const mode = s(formData, "mode");
+  if (mode !== "grant" && mode !== "revoke") redirect("/admin/users?error=Choose+a+valid+role+action.");
+  const role = s(formData, "role");
+  const params = new URLSearchParams();
+  if (s(formData, "q")) params.set("q", s(formData, "q"));
+  if (s(formData, "page")) params.set("page", s(formData, "page"));
+  params.set("notice", `${mode === "grant" ? "Granted" : "Removed"} the ${role.replace(/_/g, " ")} role.`);
+  await exec("/admin/users", () => admin.setRole(s(formData, "userId"), role, mode === "grant"), `/admin/users?${params.toString()}`);
 }
 export async function createPlatformRoleAction(formData: FormData) {
+  const name = s(formData, "name").trim();
+  const permissions = formData.getAll("permissions").map(String);
+  if (permissions.length === 0) redirect("/admin/roles?error=Choose+at+least+one+access+option+before+creating+the+role.");
   await exec("/admin/roles", () => admin.createPlatformRole({
     key: s(formData, "key"),
     name: s(formData, "name"),
     description: s(formData, "description"),
-    permissions: formData.getAll("permissions").map(String),
-  }));
+    permissions,
+  }), `/admin/roles?notice=${encodeURIComponent(`Created the ${name} role. It is ready to assign from Users.`)}`);
 }
 export async function retryDeadJobAction(formData: FormData) {
   await exec("/admin/operations", () => admin.retryDeadJob(s(formData, "jobId")));

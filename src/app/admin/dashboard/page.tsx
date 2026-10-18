@@ -71,10 +71,11 @@ export default async function Dash() {
                   <span><span className="block text-sm font-medium text-ink">Course reviews</span><span className="mt-1 block text-xs text-ink-soft">{openReviews ? "Submissions need a decision" : "No submissions are waiting"}</span></span>
                   <span className={`shrink-0 rounded-full px-3 py-1 text-sm font-semibold tabular-nums ${openReviews ? "bg-amber-100 text-amber-800" : "bg-emerald-50 text-emerald-700"}`}>{count(openReviews)}</span>
                 </Link>
-                <div className="rounded-xl border border-surface-line p-4">
+                <Link href="/admin/reports" className="block rounded-xl border border-surface-line p-4 transition-colors hover:border-brand/40 hover:bg-brand-soft/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand">
                   <div className="flex items-center justify-between gap-3"><span className="text-sm font-medium text-ink">Enrollment completion</span><span className="shrink-0 text-sm font-semibold tabular-nums text-ink">{enrollments > 0 ? `${completionRate}%` : "Waiting for data"}</span></div>
                   {enrollments > 0 ? <><div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-muted" role="progressbar" aria-label="Enrollment completion rate" aria-valuemin={0} aria-valuemax={100} aria-valuenow={completionRate}><div className="h-full rounded-full bg-ok transition-[width]" style={{ width: `${completionRate}%` }} /></div><p className="mt-2 text-xs text-ink-soft">{count(completions)} of {count(enrollments)} enrollments completed</p></> : <p className="mt-2 text-xs text-ink-soft">Completion data will appear after learners enroll in courses.</p>}
-                </div>
+                  <span className="mt-2 block text-xs font-medium text-brand">Open learning reports →</span>
+                </Link>
                 <Link href="/admin/operations?status=dead" className="flex items-center justify-between gap-4 rounded-xl border border-surface-line p-4 transition-colors hover:border-brand/40 hover:bg-brand-soft/30">
                   <span><span className="block text-sm font-medium text-ink">Background jobs</span><span className="mt-1 block text-xs text-ink-soft">{deadJobs ? "Failed jobs need attention" : "No failed jobs need a retry"}</span></span>
                   <span className={`shrink-0 rounded-full px-3 py-1 text-sm font-semibold tabular-nums ${deadJobs ? "bg-red-50 text-danger" : "bg-emerald-50 text-emerald-700"}`}>{deadJobs ? count(deadJobs) : "Clear"}</span>

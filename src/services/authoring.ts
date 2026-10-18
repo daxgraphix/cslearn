@@ -1,6 +1,6 @@
 import "server-only";
 import { createSupabase } from "@/lib/supabase/server";
-import { requireCourseTeam, requirePermission } from "@/lib/auth";
+import { ForbiddenError, requireCourseTeam, requirePermission } from "@/lib/auth";
 import { courseMetaSchema, createCourseSchema, lessonSchema, moduleSchema, questionSchema } from "@/lib/validation";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import type { z } from "zod";
@@ -13,7 +13,10 @@ async function versionCourseId(versionId: string) {
 }
 
 export async function createCourse(input: z.input<typeof createCourseSchema>) {
-  await requirePermission("course.create");
+  const user = await requirePermission("course.create");
+  if (!user.permissions.has("course.update.own") && !user.permissions.has("course.update.any")) {
+    throw new ForbiddenError("Course creation also requires permission to edit course drafts.");
+  }
   const v = createCourseSchema.parse(input);
   const supabase = await createSupabase();
   const { data, error } = await supabase.rpc("create_course", { p_title: v.title, p_slug: v.slug, p_category: v.categoryId || null });

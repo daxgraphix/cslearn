@@ -2,9 +2,14 @@ import Link from "next/link";
 import { listCatalog, listCategories } from "@/services/catalog";
 import { CourseCard } from "@/components/CourseCard";
 import { getT } from "@/i18n";
+import { getSessionUser } from "@/lib/auth";
+import { defaultWorkspacePath, portalsFor } from "@/lib/permissions";
+import { redirect } from "next/navigation";
 import { ArrowRight, Award, BookOpenCheck, BriefcaseBusiness, Compass, ShieldCheck, Users } from "lucide-react";
 
 export default async function Home() {
+  const user = await getSessionUser();
+  if (user) redirect(defaultWorkspacePath(portalsFor(user.roles, user.permissions, user.orgManagerOf.length > 0)));
   const t = await getT();
   const [catalogResult, categoriesResult] = await Promise.allSettled([
     listCatalog({ limit: 6, includeCount: false }),

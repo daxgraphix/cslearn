@@ -36,8 +36,9 @@ export function Empty({ title, hint, href, cta }: { title: string; hint?: string
     </div>
   );
 }
-export function Stat({ label, value }: { label: string; value: React.ReactNode }) {
-  return <div className="card min-w-0 overflow-hidden border border-surface-line p-4 sm:p-5"><div className="-mx-4 -mt-4 mb-4 h-1 bg-brand/70 sm:-mx-5 sm:-mt-5" /><p className="break-words text-xs font-medium leading-5 text-ink-soft sm:text-sm">{label}</p><p className="mt-2 break-words text-2xl font-semibold tabular-nums text-ink sm:text-3xl">{value}</p></div>;
+export function Stat({ label, value, href }: { label: string; value: React.ReactNode; href?: string }) {
+  const content = <div className={cn("card min-w-0 overflow-hidden border border-surface-line p-4 sm:p-5", href && "transition duration-150 group-hover:-translate-y-0.5 group-hover:border-brand/40 group-hover:shadow-md")}><div className="-mx-4 -mt-4 mb-4 h-1 bg-brand/70 sm:-mx-5 sm:-mt-5" /><p className="break-words text-xs font-medium leading-5 text-ink-soft sm:text-sm">{label}</p><p className="mt-2 break-words text-2xl font-semibold tabular-nums text-ink sm:text-3xl">{value}</p>{href && <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand">View details <span aria-hidden="true">→</span></span>}</div>;
+  return href ? <Link href={href} aria-label={`View ${label}`} className="group block rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">{content}</Link> : content;
 }
 export function Table({ head, children }: { head: string[]; children: React.ReactNode }) {
   return (

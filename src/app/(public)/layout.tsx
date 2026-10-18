@@ -2,18 +2,17 @@ import Link from "next/link";
 import { Menu } from "lucide-react";
 import { getT } from "@/i18n";
 import { getSessionUser } from "@/lib/auth";
-import { portalsFor, type Portal } from "@/lib/permissions";
+import { defaultWorkspacePath, portalsFor } from "@/lib/permissions";
 
 export default async function PublicLayout({ children }: { children: React.ReactNode }) {
   const t = await getT(); const user = await getSessionUser().catch(() => null);
   const portals = user ? portalsFor(user.roles, user.permissions, user.orgManagerOf.length > 0) : [];
-  const preferredPortal = (["admin", "reviewer", "instructor", "organization", "support", "learner"] as Portal[]).find((portal) => portals.includes(portal)) ?? "learner";
-  const dashboardHref = `/${preferredPortal === "support" ? "support/queue" : preferredPortal + "/dashboard"}`;
+  const dashboardHref = defaultWorkspacePath(portals);
   return (
     <div className="flex min-h-screen flex-col bg-[#fbfcfb]">
       <header className="sticky top-0 z-40 border-b border-surface-line/80 bg-white/95 shadow-[0_4px_18px_rgba(23,45,39,0.04)] backdrop-blur">
         <div className="mx-auto flex min-h-[72px] max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex shrink-0 items-center gap-2.5 text-base font-semibold text-brand" aria-label={`${t("app.name")} home`}>
+          <Link href={user ? dashboardHref : "/"} className="flex shrink-0 items-center gap-2.5 text-base font-semibold text-brand" aria-label={user ? `${t("app.name")} workspace` : `${t("app.name")} home`}>
             <span className="grid h-9 w-11 place-items-center rounded-md border-2 border-ok bg-[#f3f8f5] text-[9px] font-bold tracking-wide">CSGO</span>
           </Link>
           <nav aria-label="Main" className="hidden items-center gap-5 text-sm font-medium text-ink-soft lg:flex xl:gap-7">
@@ -58,7 +57,7 @@ export default async function PublicLayout({ children }: { children: React.React
       <footer className="mt-auto bg-[#173a35] text-white">
         <div className="mx-auto grid max-w-7xl grid-cols-2 gap-x-6 gap-y-5 px-4 py-6 sm:px-6 lg:grid-cols-[1.5fr_1fr_1fr_1fr] lg:gap-8 lg:px-8 lg:py-12">
           <div className="col-span-2 lg:col-span-1">
-            <Link href="/" className="inline-flex items-center gap-2.5 text-base font-semibold text-white">
+            <Link href={user ? dashboardHref : "/"} className="inline-flex items-center gap-2.5 text-base font-semibold text-white">
               <span className="grid h-9 w-11 place-items-center rounded-md border border-white/40 text-[9px] font-bold tracking-wide">CSGO</span>
             </Link>
             <p className="mt-3 max-w-sm text-sm leading-6 text-white/70 lg:mt-4">Learn with purpose, demonstrate what you know, and earn credentials anyone can verify.</p>

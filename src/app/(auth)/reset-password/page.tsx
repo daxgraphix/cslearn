@@ -17,7 +17,8 @@ export default async function ResetPassword({ searchParams }: { searchParams: Pr
       <p className="mt-2 text-sm leading-6 text-ink-soft">Use the latest password reset email to continue. Reset links expire after a short time and can only be used once.</p>
     </div>
     <Flash error={params.error ?? "This reset link is missing or has expired. Request a new one to continue."} />
-    <Link href="/login" className="btn-primary w-full">Return to log in</Link>
+    <Link href="/forgot-password" className="btn-primary mt-4 block w-full text-center">Request a new reset email</Link>
+    <p className="mt-4 text-center text-sm"><Link href="/login" className="font-medium text-brand hover:underline">Return to log in</Link></p>
   </>;
   return (
     <>

@@ -49,6 +49,7 @@ export async function roleCatalog() {
   return {
     roles: roles ?? [],
     permissions: (permissions ?? []).filter((permission) => user.permissions.has(permission.key)),
+    permissionDescriptions: Object.fromEntries((permissions ?? []).map((permission) => [permission.key, permission.description])),
     canAssignPrivileged: user.permissions.has("role.assign.privileged"),
   };
 }
@@ -63,6 +64,7 @@ export async function createPlatformRole(input: unknown) {
     p_description: role.description || null,
     p_permissions: permissions,
   });
+  if (error?.code === "23505") throw Object.assign(new Error("That system ID is already in use. Choose a different one."), { code: "P0001" });
   if (error) throw error;
 }
 export async function overview() {

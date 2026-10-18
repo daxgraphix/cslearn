@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { LayoutDashboard, BookOpen, Tags, Award, Bell, BarChart3, GraduationCap, ClipboardCheck, Inbox, Users, KeyRound,
-  ShieldCheck, FileBarChart, Building2, Activity, LifeBuoy, Settings, ListChecks, UserPlus, Layers, ScrollText, Menu } from "lucide-react";
+  ShieldCheck, FileBarChart, Building2, Activity, LifeBuoy, Settings, ListChecks, UserPlus, Layers, ScrollText, LogOut } from "lucide-react";
 import { getT, type MessageKey } from "@/i18n";
 import type { Portal } from "@/lib/permissions";
 import { NavLink } from "./NavLink";
+import { SidebarFrame } from "./SidebarFrame";
+import { WorkspaceBreadcrumbs } from "./WorkspaceBreadcrumbs";
+import { MobileNavMenu } from "./MobileNavMenu";
 import { logoutAction } from "@/app/actions";
 
 type Item = { href: string; key: MessageKey; icon: React.ElementType };
@@ -41,40 +44,42 @@ const NAV: Record<Portal, Section[]> = {
   support: [{ title: "Core", items: [{ href: "/support/queue", key: "nav.support", icon: LifeBuoy }] }],
 };
 const TITLES: Record<Portal, string> = { learner: "Learner", instructor: "Instructor studio", reviewer: "Reviewer", admin: "Administration", organization: "Organization", support: "Support desk" };
+const PORTAL_ICONS: Record<Portal, React.ElementType> = { learner: BookOpen, instructor: GraduationCap, reviewer: ClipboardCheck, admin: ShieldCheck, organization: Building2, support: LifeBuoy };
 
 export async function Shell({ portal, portals, name, children }: { portal: Portal; portals: Portal[]; name: string; children: React.ReactNode }) {
   const t = await getT();
   return (
     <div className="flex min-h-screen bg-surface-muted/30">
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto border-r border-surface-line bg-white px-3 py-5 md:flex" aria-label="Primary">
-        <Link href="/" className="mb-7 flex items-center gap-2 px-3 text-lg font-semibold text-brand">
-          <span className="grid h-8 w-10 place-items-center rounded-md border-2 border-ok text-[9px] font-bold">CSGO</span>{t("app.name")}
+      <SidebarFrame>
+        <Link href={`/${portal === "support" ? "support/queue" : portal + "/dashboard"}`} title={`${TITLES[portal]} home`} className="mb-5 flex items-center gap-2 px-2 text-lg font-semibold text-brand group-data-[collapsed=true]/sidebar:justify-center group-data-[collapsed=true]/sidebar:px-0">
+          <span className="grid h-9 w-10 shrink-0 place-items-center rounded-lg border-2 border-ok bg-brand-soft text-[9px] font-bold">CSGO</span><span className="truncate group-data-[collapsed=true]/sidebar:hidden">{t("app.name")}</span>
         </Link>
-        <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-faint">{TITLES[portal]}</p>
-        <nav className="flex flex-1 flex-col gap-5">
+        <div className="mb-2 flex items-center gap-2 px-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-faint group-data-[collapsed=true]/sidebar:justify-center group-data-[collapsed=true]/sidebar:px-0">
+          {(() => { const Icon = PORTAL_ICONS[portal]; return <Icon size={16} className="shrink-0 text-brand" aria-hidden="true" />; })()}
+          <span className="truncate group-data-[collapsed=true]/sidebar:hidden">{TITLES[portal]}</span>
+        </div>
+        <nav className="flex flex-1 flex-col gap-5" aria-label={`${TITLES[portal]} navigation`}>
           {NAV[portal].map((s) => (
-            <div key={s.title}>
-              <p className="px-3 pb-1 text-xs text-ink-faint">{s.title}</p>
+            <section key={s.title}>
+              <p className="px-3 pb-1 text-xs font-medium text-ink-faint group-data-[collapsed=true]/sidebar:hidden">{s.title}</p>
               <ul className="space-y-0.5">{s.items.map((i) => <li key={i.href}><NavLink href={i.href} icon={<i.icon size={18} />} label={t(i.key)} /></li>)}</ul>
-            </div>
+            </section>
           ))}
         </nav>
-        {portals.length > 1 && (
-          <div className="mt-4 border-t border-surface-line pt-3">
-            <p className="px-3 pb-1 text-xs font-medium text-ink-faint">Switch workspace</p>
-            <ul className="space-y-0.5">{portals.filter((p) => p !== portal).map((p) => <li key={p}><Link className="flex min-h-10 items-center justify-between rounded-lg px-3 py-2 text-sm text-ink-soft transition-colors hover:bg-surface-muted hover:text-ink" href={`/${p === "support" ? "support/queue" : p + "/dashboard"}`}><span>{TITLES[p]}</span><span aria-hidden="true" className="text-ink-faint">↗</span></Link></li>)}</ul>
-          </div>
-        )}
-        <div className="mt-3 flex items-center justify-between gap-2 border-t border-surface-line px-3 pt-3 text-sm">
-          <span className="truncate text-ink-soft" title={name}>{name}</span>
-          <form action={logoutAction}><button className="text-brand hover:underline">{t("nav.logout")}</button></form>
+        {portals.length > 1 && <div className="mt-4 border-t border-surface-line pt-3">
+          <p className="px-3 pb-1 text-xs font-medium text-ink-faint group-data-[collapsed=true]/sidebar:hidden">Switch workspace</p>
+          <ul className="space-y-0.5">{portals.filter((p) => p !== portal).map((p) => { const Icon = PORTAL_ICONS[p]; return <li key={p}><Link title={TITLES[p]} aria-label={`Switch to ${TITLES[p]}`} className="flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm text-ink-soft transition-colors hover:bg-surface-muted hover:text-ink group-data-[collapsed=true]/sidebar:justify-center group-data-[collapsed=true]/sidebar:px-0" href={`/${p === "support" ? "support/queue" : p + "/dashboard"}`}><Icon size={18} className="shrink-0" aria-hidden="true" /><span className="truncate group-data-[collapsed=true]/sidebar:hidden">{TITLES[p]}</span></Link></li>; })}</ul>
+        </div>}
+        <div className="mt-3 flex items-center justify-between gap-2 border-t border-surface-line px-2 pt-3 text-sm group-data-[collapsed=true]/sidebar:flex-col">
+          <span className="max-w-full truncate text-ink-soft group-data-[collapsed=true]/sidebar:hidden" title={name}>{name}</span>
+          <form action={logoutAction}><button title={t("nav.logout")} aria-label={t("nav.logout")} className="flex min-h-9 items-center gap-2 rounded-md px-2 py-1 text-brand hover:bg-brand-soft group-data-[collapsed=true]/sidebar:justify-center group-data-[collapsed=true]/sidebar:px-0"><LogOut size={16} aria-hidden="true" /><span className="group-data-[collapsed=true]/sidebar:hidden">{t("nav.logout")}</span></button></form>
         </div>
-      </aside>
+      </SidebarFrame>
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-surface-line bg-white/95 px-4 py-2.5 backdrop-blur md:px-8">
           <div className="flex min-w-0 items-center gap-2.5">
-            <Link href="/" className="grid h-8 w-10 shrink-0 place-items-center rounded-md border-2 border-ok text-[9px] font-bold text-brand" aria-label="CSGO home">CSGO</Link>
-            <span className="truncate text-sm font-semibold text-brand">{TITLES[portal]}</span>
+            <Link href={`/${portal === "support" ? "support/queue" : portal + "/dashboard"}`} className="grid h-8 w-10 shrink-0 place-items-center rounded-md border-2 border-ok text-[9px] font-bold text-brand" aria-label={`${TITLES[portal]} home`}>CSGO</Link>
+            <span className="truncate text-sm font-semibold text-brand">{TITLES[portal]} <span className="font-normal text-ink-faint">/ Workspace</span></span>
           </div>
           <div className="hidden min-w-0 items-center gap-4 md:flex">
             {portals.length > 1 && <details className="relative">
@@ -86,27 +91,26 @@ export async function Shell({ portal, portals, name, children }: { portal: Porta
             <span className="max-w-56 truncate text-sm text-ink-soft" title={name}>{name}</span>
             <form action={logoutAction}><button className="btn-outline py-2">{t("nav.logout")}</button></form>
           </div>
-          <details className="relative md:hidden">
-            <summary aria-label={`Open ${TITLES[portal]} navigation`} className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-lg px-3 text-sm font-medium hover:bg-surface-muted"><Menu size={18} aria-hidden="true" />Menu</summary>
-            <div className="absolute right-0 top-12 z-30 max-h-[80vh] w-72 overflow-y-auto rounded-lg border border-surface-line bg-white p-3 shadow-card">
+          <div className="md:hidden">
+            <MobileNavMenu title={TITLES[portal]}>
               <nav aria-label="Primary">
                 {NAV[portal].map((section) => <section key={section.title} className="mb-4 last:mb-0">
-                  <p className="px-3 pb-1 text-xs text-ink-faint">{section.title}</p>
+                  <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-faint">{section.title}</p>
                   <ul className="space-y-0.5">{section.items.map((item) => <li key={item.href}><NavLink href={item.href} icon={<item.icon size={18} />} label={t(item.key)} /></li>)}</ul>
                 </section>)}
               </nav>
               {portals.length > 1 && <div className="mt-3 border-t border-surface-line pt-3">
-                <p className="px-3 pb-1 text-xs text-ink-faint">Switch workspace</p>
-                {portals.filter((p) => p !== portal).map((p) => <Link key={p} className="block rounded-lg px-3 py-1.5 text-sm text-ink-soft hover:bg-surface-muted" href={`/${p === "support" ? "support/queue" : p + "/dashboard"}`}>{TITLES[p]}</Link>)}
+                <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-faint">Switch workspace</p>
+                {portals.filter((p) => p !== portal).map((p) => { const Icon = PORTAL_ICONS[p]; return <Link key={p} className="flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm text-ink-soft transition-colors hover:bg-surface-muted hover:text-ink" href={`/${p === "support" ? "support/queue" : p + "/dashboard"}`}><Icon size={18} aria-hidden="true" />{TITLES[p]}</Link>; })}
               </div>}
               <div className="mt-3 flex items-center justify-between border-t border-surface-line px-3 pt-3 text-sm">
                 <span className="truncate text-ink-soft" title={name}>{name}</span>
-                <form action={logoutAction}><button className="text-brand hover:underline">{t("nav.logout")}</button></form>
+                <form action={logoutAction}><button className="rounded-lg px-3 py-2 font-medium text-brand hover:bg-brand-soft">{t("nav.logout")}</button></form>
               </div>
-            </div>
-          </details>
+            </MobileNavMenu>
+          </div>
         </header>
-        <main id="main" className="mx-auto w-full min-w-0 max-w-[1600px] flex-1 p-4 md:p-8">{children}</main>
+        <main id="main" className="mx-auto w-full min-w-0 max-w-[1600px] flex-1 p-4 md:p-8"><WorkspaceBreadcrumbs portal={portal} />{children}</main>
         <footer className="mt-auto border-t border-surface-line bg-white">
           <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-4 text-xs text-ink-faint sm:flex-row sm:items-center sm:justify-between md:px-8">
             <span>CSGO · {TITLES[portal]} workspace</span>
@@ -114,7 +118,7 @@ export async function Shell({ portal, portals, name, children }: { portal: Porta
               <Link href={`/${portal === "support" ? "support/queue" : portal + "/dashboard"}`} className="hover:text-brand">Workspace home</Link>
               <Link href="/courses" className="hover:text-brand">Course catalog</Link>
               <Link href="/help" className="hover:text-brand">Help center</Link>
-              <Link href="/" className="hover:text-brand">Public site</Link>
+              <Link href="/about" className="hover:text-brand">About CSGO</Link>
             </nav>
           </div>
         </footer>
