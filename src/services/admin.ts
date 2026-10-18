@@ -80,7 +80,7 @@ export async function auditLog(page = 1) {
 export async function adminCourses() {
   await requirePermission("course.read.any");
   const supabase = await createSupabase();
-  const { data } = await supabase.from("courses").select("id, slug, archived_at, published_version_id, course_versions!course_versions_course_id_fkey(id, title, status, version_number)").order("created_at", { ascending: false }).limit(100);
+  const { data } = await supabase.from("courses").select("id, slug, archived_at, published_version_id, course_versions!course_versions_course_id_fkey(id, title, status, version_number, course_submissions(id, status, assigned_reviewer_id))").order("created_at", { ascending: false }).limit(100);
   return data ?? [];
 }
 export async function jobHealth() {
