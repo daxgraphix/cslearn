@@ -7,10 +7,18 @@ import type { z } from "zod";
 
 export async function listUsers(search?: string, page = 1) {
   await requirePermission("user.read");
-  const supabase = await createSupabase();
+  // Explicit app authorization above allows this staff list to bypass profile RLS;
+  // relying on the session query can silently return an empty list for scoped roles.
+  const supabase = createAdminSupabase();
   let q = supabase.from("profiles").select("id, full_name, status, created_at, user_roles(roles(key, name))", { count: "exact" });
-  if (search) q = q.ilike("full_name", `%${search.replace(/[%_]/g, "")}%`);
-  const { data, count } = await q.order("created_at", { ascending: false }).range((page - 1) * 25, page * 25 - 1);
+  const term = search?.trim().replace(/[%_]/g, "");
+  if (term) q = q.ilike("full_name", `%${term}%`);
+  const safePage = Math.max(1, Math.floor(page) || 1);
+  const { data, count, error } = await q.order("created_at", { ascending: false }).range((safePage - 1) * 25, safePage * 25 - 1);
+  if (error) {
+    console.error("[admin:list-users]", { code: error.code, message: error.message });
+    throw new Error("Could not load the user list. Refresh the page and try again.");
+  }
   return { users: data ?? [], total: count ?? 0 };
 }
 

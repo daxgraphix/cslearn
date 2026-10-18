@@ -1,6 +1,6 @@
 import "server-only";
 import { createSupabase, createAdminSupabase } from "@/lib/supabase/server";
-import { requirePermission, requireCourseTeam } from "@/lib/auth";
+import { requirePermission, requirePageAccess, requireCourseTeam } from "@/lib/auth";
 import { reviewSchema } from "@/lib/validation";
 import type { z } from "zod";
 
@@ -106,7 +106,9 @@ export async function createRevision(courseId: string, summary?: string) {
 }
 
 export async function getReviewDetail(submissionId: string) {
-  const user = await requirePermission("course.review.assigned", "course.review.any");
+  // Page access failures should be routed to the access explanation, not rendered
+  // as an unhandled server error screen.
+  const user = await requirePageAccess("course.review.assigned", "course.review.any");
   const admin = createAdminSupabase();
   const { data: submission, error: submissionError } = await admin.from("course_submissions")
     .select("id, version_id, submitted_by, assigned_reviewer_id, status, note")
@@ -118,17 +120,32 @@ export async function getReviewDetail(submissionId: string) {
   if (submission.submitted_by === user.id) return null;
 
   const { data: version, error: versionError } = await admin.from("course_versions")
-    .select("id, title, status, version_number, course_id, modules(id, title, position, lessons(id, title, type, position))")
+    .select("id, title, status, version_number, course_id")
     .eq("id", submission.version_id).maybeSingle();
   if (versionError) throw versionError;
   if (!version) return null;
-  const { data: course, error: courseError } = await admin.from("courses")
-    .select("owner_id, course_instructors(user_id)").eq("id", version.course_id).maybeSingle();
+  const [{ data: course, error: courseError }, { data: moduleRows, error: modulesError }, { data: comments, error: commentsError }] = await Promise.all([
+    admin.from("courses").select("owner_id, course_instructors(user_id)").eq("id", version.course_id).maybeSingle(),
+    admin.from("modules").select("id, title, position").eq("version_id", version.id).order("position"),
+    admin.from("review_comments").select("id, body, lesson_id, created_at").eq("submission_id", submissionId).order("created_at"),
+  ]);
   if (courseError) throw courseError;
-  if (!course || course.owner_id === user.id || (course.course_instructors ?? []).some((instructor: any) => instructor.user_id === user.id)) return null;
-
-  const { data: comments, error: commentsError } = await admin.from("review_comments")
-    .select("id, body, lesson_id, created_at").eq("submission_id", submissionId).order("created_at");
+  if (modulesError) throw modulesError;
   if (commentsError) throw commentsError;
-  return { id: submission.id, note: submission.note, status: submission.status, course_versions: version, review_comments: comments ?? [] };
+  if (!course || course.owner_id === user.id || (course.course_instructors ?? []).some((instructor: any) => instructor.user_id === user.id)) return null;
+  const modules = (moduleRows ?? []) as any[];
+  const moduleIds = modules.map((module) => module.id);
+  const { data: lessonRows, error: lessonsError } = moduleIds.length
+    ? await admin.from("lessons").select("id, module_id, title, type, position").in("module_id", moduleIds).order("position")
+    : { data: [], error: null };
+  if (lessonsError) throw lessonsError;
+  const lessonsByModule = new Map<string, any[]>();
+  for (const lesson of lessonRows ?? []) lessonsByModule.set(lesson.module_id, [...(lessonsByModule.get(lesson.module_id) ?? []), lesson]);
+  return {
+    id: submission.id,
+    note: submission.note,
+    status: submission.status,
+    course_versions: { ...version, modules: modules.map((module) => ({ ...module, lessons: lessonsByModule.get(module.id) ?? [] })) },
+    review_comments: comments ?? [],
+  };
 }

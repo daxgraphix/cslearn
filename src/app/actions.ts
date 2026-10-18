@@ -99,6 +99,8 @@ export async function requestPasswordResetAction(formData: FormData) {
   if (!email) redirect(`/forgot-password?error=${encodeURIComponent("Enter the email address for your account.")}`);
   let failed = false;
   try {
+    // Preserve the standard callback flow for projects still using Supabase's
+    // default email template. The custom template links directly to /auth/confirm.
     const redirectTo = new URL("/auth/callback?next=%2Freset-password", getSiteUrl()).toString();
     const { error } = await (await createSupabase()).auth.resetPasswordForEmail(email, { redirectTo });
     failed = Boolean(error);

@@ -6,12 +6,17 @@ import { Flash } from "@/components/Flash";
 import { suspendAction, reinstateAction, roleAction } from "@/app/actions";
 import { fmtDate } from "@/lib/utils";
 import { SubmitButton } from "@/components/SubmitButton";
+import { redirect } from "next/navigation";
 export const metadata = { title: "Users" };
 export default async function Users({ searchParams }: { searchParams: Promise<{ q?: string; page?: string; error?: string; notice?: string }> }) {
   const sp = await searchParams; const me = await getSessionUser();
   const page = Math.max(1, Number(sp.page) || 1);
   const { users, total } = await listUsers(sp.q, page);
   const pages = Math.max(1, Math.ceil(total / 25));
+  if (total > 0 && page > pages) {
+    const query = new URLSearchParams({ ...(sp.q ? { q: sp.q } : {}), page: String(pages) });
+    redirect(`/admin/users?${query}`);
+  }
   const canAssign = me?.permissions.has("role.assign");
   const roleData = canAssign ? await roleCatalog() : null;
   const assignableRoles = roleData?.roles.filter((role) => !role.is_privileged || roleData.canAssignPrivileged) ?? [];

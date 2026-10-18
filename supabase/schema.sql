@@ -1,5 +1,5 @@
 -- =====================================================================
--- Consolidated schema snapshot: migrations 0001-0011
+-- Consolidated schema snapshot: migrations 0001-0014
 -- Fresh Supabase projects only. Existing projects must apply pending migrations.
 -- =====================================================================
 -- =====================================================================
@@ -83,7 +83,7 @@ create table user_roles (
   user_id uuid not null references profiles(id) on delete cascade,
   role_id uuid not null references roles(id) on delete cascade,
   organization_id uuid references organizations(id) on delete cascade,
-  granted_by uuid references profiles(id),
+  granted_by uuid references profiles(id) on delete set null,
   created_at timestamptz not null default now()
 );
 create unique index uq_user_roles on user_roles (user_id, role_id, coalesce(organization_id, '00000000-0000-0000-0000-000000000000'));
@@ -131,7 +131,8 @@ create table courses (
   id uuid primary key default gen_random_uuid(),
   slug text unique not null check (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
   category_id uuid references categories(id) on delete set null,
-  owner_id uuid not null references profiles(id),
+  -- Preserve shared course content when its original owner deletes their account.
+  owner_id uuid references profiles(id) on delete set null,
   organization_id uuid references organizations(id) on delete set null, -- private to an org when set
   published_version_id uuid, -- FK added after course_versions
   visibility text not null default 'public' check (visibility in ('public','unlisted','organization')),
@@ -169,7 +170,7 @@ create table course_versions (
   seo_title text,
   seo_description text,
   change_summary text,
-  created_by uuid not null references profiles(id),
+  created_by uuid references profiles(id) on delete set null,
   submitted_at timestamptz,
   approved_at timestamptz,
   published_at timestamptz,
@@ -242,7 +243,7 @@ create table learning_paths (
   title text not null,
   description text,
   status text not null default 'draft' check (status in ('draft','published','archived')),
-  created_by uuid references profiles(id),
+  created_by uuid references profiles(id) on delete set null,
   created_at timestamptz not null default now()
 );
 create table learning_path_courses (
@@ -258,8 +259,8 @@ create table learning_path_courses (
 create table course_submissions (
   id uuid primary key default gen_random_uuid(),
   version_id uuid not null references course_versions(id) on delete cascade,
-  submitted_by uuid not null references profiles(id),
-  assigned_reviewer_id uuid references profiles(id),
+  submitted_by uuid references profiles(id) on delete set null,
+  assigned_reviewer_id uuid references profiles(id) on delete set null,
   status text not null default 'pending' check (status in ('pending','in_review','closed')),
   note text,
   created_at timestamptz not null default now(),
@@ -270,7 +271,7 @@ create index idx_submissions_reviewer on course_submissions(assigned_reviewer_id
 create table course_reviews (
   id uuid primary key default gen_random_uuid(),
   submission_id uuid not null references course_submissions(id) on delete cascade,
-  reviewer_id uuid not null references profiles(id),
+  reviewer_id uuid references profiles(id) on delete set null,
   decision review_decision not null,
   summary text,
   created_at timestamptz not null default now()
@@ -280,7 +281,7 @@ create table review_comments (
   review_id uuid references course_reviews(id) on delete cascade,
   submission_id uuid not null references course_submissions(id) on delete cascade,
   lesson_id uuid references lessons(id) on delete set null,
-  author_id uuid not null references profiles(id),
+  author_id uuid references profiles(id) on delete set null,
   body text not null,
   resolved boolean not null default false,
   created_at timestamptz not null default now()
@@ -290,7 +291,7 @@ create table publication_events (
   course_id uuid not null references courses(id) on delete cascade,
   version_id uuid not null references course_versions(id) on delete cascade,
   action text not null check (action in ('published','unpublished','scheduled','archived','restored')),
-  actor_id uuid references profiles(id),
+  actor_id uuid references profiles(id) on delete set null,
   created_at timestamptz not null default now()
 );
 
@@ -367,7 +368,7 @@ create table cohorts (
   name text not null,
   starts_on date,
   ends_on date,
-  created_by uuid references profiles(id),
+  created_by uuid references profiles(id) on delete set null,
   created_at timestamptz not null default now()
 );
 create table cohort_memberships (
@@ -380,7 +381,7 @@ create table cohort_course_assignments (
   cohort_id uuid references cohorts(id) on delete cascade,
   course_id uuid references courses(id) on delete cascade,
   due_on date,
-  assigned_by uuid references profiles(id),
+  assigned_by uuid references profiles(id) on delete set null,
   primary key (cohort_id, course_id)
 );
 
@@ -457,7 +458,7 @@ create table submissions (
 create table grades (
   id uuid primary key default gen_random_uuid(),
   submission_id uuid unique not null references submissions(id) on delete cascade,
-  grader_id uuid not null references profiles(id),
+  grader_id uuid references profiles(id) on delete set null,
   points numeric(6,2) not null check (points >= 0),
   feedback text,
   finalized boolean not null default false,
@@ -466,7 +467,7 @@ create table grades (
 create table grade_events (
   id bigint generated always as identity primary key,
   submission_id uuid not null references submissions(id) on delete cascade,
-  actor_id uuid not null references profiles(id),
+  actor_id uuid references profiles(id) on delete set null,
   old_points numeric(6,2),
   new_points numeric(6,2),
   reason text,
@@ -486,8 +487,8 @@ create table course_evaluations (
 create table certificates (
   id uuid primary key default gen_random_uuid(),
   serial text unique not null,
-  enrollment_id uuid not null references enrollments(id) on delete restrict,
-  learner_id uuid not null references profiles(id),
+  enrollment_id uuid not null references enrollments(id) on delete cascade,
+  learner_id uuid not null references profiles(id) on delete cascade,
   course_id uuid not null references courses(id),
   version_id uuid not null references course_versions(id),
   learner_name text not null,           -- snapshot so reissue/rename never rewrites history
@@ -509,7 +510,8 @@ create table certificate_events (
 
 create table orders (
   id uuid primary key default gen_random_uuid(),
-  learner_id uuid not null references profiles(id),
+  -- Keep financial records for reconciliation, but detach deleted accounts.
+  learner_id uuid references profiles(id) on delete set null,
   course_id uuid not null references courses(id),
   version_id uuid not null references course_versions(id),
   amount_cents int not null check (amount_cents >= 0),
@@ -536,13 +538,13 @@ create table refunds (
   order_id uuid not null references orders(id),
   amount_cents int not null check (amount_cents > 0),
   reason text,
-  requested_by uuid references profiles(id),
-  approved_by uuid references profiles(id),
+  requested_by uuid references profiles(id) on delete set null,
+  approved_by uuid references profiles(id) on delete set null,
   created_at timestamptz not null default now()
 );
 create table subscriptions (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references profiles(id),
+  user_id uuid not null references profiles(id) on delete cascade,
   plan text not null,
   status text not null default 'active',
   current_period_end timestamptz
@@ -584,7 +586,7 @@ create table notification_preferences (
 create table support_tickets (
   id uuid primary key default gen_random_uuid(),
   requester_id uuid not null references profiles(id) on delete cascade,
-  assignee_id uuid references profiles(id),
+  assignee_id uuid references profiles(id) on delete set null,
   subject text not null,
   category text not null default 'general' check (category in ('general','access','payment','academic','security','privacy')),
   status ticket_status not null default 'open',
@@ -594,7 +596,7 @@ create table support_tickets (
 create table support_messages (
   id uuid primary key default gen_random_uuid(),
   ticket_id uuid not null references support_tickets(id) on delete cascade,
-  author_id uuid not null references profiles(id),
+  author_id uuid references profiles(id) on delete set null,
   body text not null,
   internal boolean not null default false,
   created_at timestamptz not null default now()
@@ -625,7 +627,7 @@ create index idx_jobs_ready on jobs(run_at) where status = 'queued';
 create table settings (
   key text primary key,
   value jsonb not null,
-  updated_by uuid references profiles(id),
+  updated_by uuid references profiles(id) on delete set null,
   updated_at timestamptz not null default now()
 );
 
@@ -878,8 +880,11 @@ begin
     approved_at = case when p_decision = 'approved' then now() else null end
   where id = v.id;
   perform write_audit(uid, 'course.review_' || p_decision::text, 'course_version', v.id::text, jsonb_build_object('review_id', rid));
-  insert into notifications(user_id, kind, title, body, href)
-    values (s.submitted_by, 'review', 'Review: ' || p_decision::text, left(coalesce(p_summary,''), 280), '/instructor/courses/' || v.course_id || '/builder');
+  -- Deleted submitters have no profile to notify; keep the review history intact.
+  if s.submitted_by is not null then
+    insert into notifications(user_id, kind, title, body, href)
+      values (s.submitted_by, 'review', 'Review: ' || p_decision::text, left(coalesce(p_summary,''), 280), '/instructor/courses/' || v.course_id || '/builder');
+  end if;
   return rid;
 end $$;
 
