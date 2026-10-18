@@ -23,7 +23,7 @@ export function portalsFor(roles: RoleKey[], perms: Set<string>, isOrgManager: b
   const out: Portal[] = ["learner"];
   if (perms.has("course.update.own") || perms.has("course.update.any")) out.push("instructor");
   if (perms.has("course.review.assigned") || perms.has("course.review.any")) out.push("reviewer");
-  const adminPermission = ["user.read", "report.read", "audit.read", "ops.read", "role.assign", "certificate.read.any", "enrollment.read.any", "course.read.any"];
+  const adminPermission = ["user.read", "report.read", "audit.read", "ops.read", "role.assign", "certificate.read.any", "enrollment.read.any"];
   if (roles.some((r) => ["owner", "admin", "auditor", "certificate_officer", "enrollment_manager", "assessment_moderator"].includes(r)) || adminPermission.some((permission) => perms.has(permission))) out.push("admin");
   if (perms.has("support.read")) out.push("support");
   if (isOrgManager) out.push("organization");

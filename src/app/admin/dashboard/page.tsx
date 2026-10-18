@@ -15,7 +15,7 @@ export default async function Dash() {
   const count = (value: unknown) => new Intl.NumberFormat("en-KE").format(Number(value ?? 0));
   const actions = [
     ...(user?.permissions.has("course.review.assigned") || user?.permissions.has("course.review.any") ? [{ title: "Review courses", href: "/admin/reviews", text: openReviews ? `${count(openReviews)} ${openReviews === 1 ? "submission" : "submissions"} waiting for a decision` : "Open the review queue" }] : []),
-    ...(user?.permissions.has("course.read.any") ? [{ title: "Publish courses", href: "/admin/courses", text: "Publish approved versions and manage the catalog" }] : []),
+    ...(user?.permissions.has("course.read.any") ? [{ title: user.permissions.has("course.publish") ? "Publish courses" : "Manage courses", href: "/admin/courses", text: user.permissions.has("course.publish") ? "Publish approved versions and manage the catalog" : "Review course status and publication history" }] : []),
     ...(user?.permissions.has("user.read") ? [{ title: "Manage users", href: "/admin/users", text: "Accounts, access, and role assignments" }] : []),
     ...(user?.permissions.has("ops.read") ? [{ title: "Check operations", href: "/admin/operations", text: deadJobs ? `${count(deadJobs)} jobs need attention` : "Queue health and background jobs" }] : []),
     ...(user?.permissions.has("role.assign") ? [{ title: "Manage roles", href: "/admin/roles", text: "Review permission bundles and role access" }] : []),

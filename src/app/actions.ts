@@ -235,6 +235,7 @@ export async function gradeAction(formData: FormData) {
 export async function decideAction(formData: FormData) {
   const id = s(formData, "submissionId");
   const path = `/reviewer/reviews/${id}`;
+  const user = await requireUser();
   const parsed = reviewSchema.safeParse({ submissionId: id, decision: s(formData, "decision"), summary: s(formData, "summary") });
   if (!parsed.success) {
     const summaryIssue = parsed.error.issues.some((issue) => issue.path[0] === "summary");
@@ -243,10 +244,13 @@ export async function decideAction(formData: FormData) {
       : "Choose a valid review decision and try again.";
     redirect(`${path}?error=${encodeURIComponent(message)}`);
   }
-  const notice = parsed.data.decision === "approved" ? "Course approved. It is ready for an authorized publisher."
+  const notice = parsed.data.decision === "approved"
+    ? (user.permissions.has("course.publish")
+      ? "Course approved and published. Learners can access it according to its visibility settings."
+      : "Course approved and queued for an authorized publisher.")
     : parsed.data.decision === "changes_requested" ? "Changes requested. The author can now revise and resubmit."
       : "Course rejected. The author has been notified.";
-  await exec(path, () => governance.decide(parsed.data), `/reviewer/queue?notice=${encodeURIComponent(notice)}`, ["/reviewer/queue", "/reviewer/dashboard", "/admin/reviews", "/admin/courses"]);
+  await exec(path, () => governance.decide(parsed.data), `/reviewer/queue?notice=${encodeURIComponent(notice)}`, ["/reviewer/queue", "/reviewer/dashboard", "/admin/reviews", "/admin/courses", "/courses"]);
 }
 export async function commentAction(formData: FormData) {
   const id = s(formData, "submissionId");
@@ -259,7 +263,7 @@ export async function claimReviewAction(formData: FormData) {
   await exec("/reviewer/queue", () => governance.claimReview(s(formData, "submissionId")), (claimedId) => `/reviewer/reviews/${claimedId}?notice=${encodeURIComponent("Review claimed. You can now assess the course.")}`, ["/reviewer/dashboard"]);
 }
 export async function publishAction(formData: FormData) {
-  await exec("/admin/courses", () => governance.publish(s(formData, "versionId")));
+  await exec("/admin/courses", () => governance.publish(s(formData, "versionId")), undefined, ["/courses"]);
 }
 
 // ---------- admin ----------

@@ -12,6 +12,7 @@ import { ChevronDown, KeyRound, ShieldCheck } from "lucide-react";
 export const metadata = { title: "Users" };
 export default async function Users({ searchParams }: { searchParams: Promise<{ q?: string; page?: string; error?: string; notice?: string }> }) {
   const sp = await searchParams; const me = await getSessionUser();
+  const canSuspend = me?.permissions.has("user.suspend") ?? false;
   const page = Math.max(1, Number(sp.page) || 1);
   const { users, total, rolesAvailable } = await listUsers(sp.q, page);
   const pages = Math.max(1, Math.ceil(total / 25));
@@ -52,8 +53,8 @@ export default async function Users({ searchParams }: { searchParams: Promise<{ 
       <tr><td className="table-td font-medium">{u.full_name || "(no name)"}</td>
         <td className="table-td"><div className="flex flex-wrap gap-1">{u.user_roles.length ? u.user_roles.map((r: any) => <Badge key={r.roles.key} status={r.roles.key}>{r.roles.name}</Badge>) : <span className="text-sm text-ink-faint">{rolesAvailable ? "Learner" : "Role details unavailable"}</span>}</div></td><td className="table-td"><Badge status={u.status} /></td><td className="table-td">{fmtDate(u.created_at)}</td>
         <td className="table-td"><div className="flex flex-wrap gap-2">
-          {u.status === "active" ? <details><summary className="btn-danger cursor-pointer list-none">Suspend</summary><form action={suspendAction} className="mt-2 flex min-w-56 flex-col gap-2"><input type="hidden" name="userId" value={u.id} /><input type="hidden" name="q" value={sp.q ?? ""} /><input type="hidden" name="page" value={page} /><label className="text-xs text-ink-soft">Reason (recorded in the audit log)<input name="reason" className="input mt-1" placeholder="Explain why access is being suspended" required minLength={5} maxLength={500} /></label><SubmitButton className="btn-danger" pendingLabel="Suspending…">Confirm suspension</SubmitButton></form></details>
-            : <form action={reinstateAction}><input type="hidden" name="userId" value={u.id} /><input type="hidden" name="q" value={sp.q ?? ""} /><input type="hidden" name="page" value={page} /><SubmitButton className="btn-outline" pendingLabel="Restoring…">Reinstate account</SubmitButton></form>}
+          {canSuspend && u.status === "active" && u.id !== me?.id ? <details><summary className="btn-danger cursor-pointer list-none">Suspend</summary><form action={suspendAction} className="mt-2 flex min-w-56 flex-col gap-2"><input type="hidden" name="userId" value={u.id} /><input type="hidden" name="q" value={sp.q ?? ""} /><input type="hidden" name="page" value={page} /><label className="text-xs text-ink-soft">Reason (recorded in the audit log)<input name="reason" className="input mt-1" placeholder="Explain why access is being suspended" required minLength={5} maxLength={500} /></label><SubmitButton className="btn-danger" pendingLabel="Suspending…">Confirm suspension</SubmitButton></form></details>
+            : canSuspend && u.status === "suspended" ? <form action={reinstateAction}><input type="hidden" name="userId" value={u.id} /><input type="hidden" name="q" value={sp.q ?? ""} /><input type="hidden" name="page" value={page} /><SubmitButton className="btn-outline" pendingLabel="Restoring…">Reinstate account</SubmitButton></form> : <span className="text-sm text-ink-faint">View only</span>}
         </div></td></tr>
       {canAssign && roleData && <tr><td colSpan={5} className="border-t border-surface-line bg-surface-muted/30 p-3 sm:p-4">
         <details className="group/access">

@@ -16,7 +16,7 @@ export default async function Ops({ searchParams }: { searchParams: Promise<{ er
   const attention = jobs.filter((job) => ["failed", "dead"].includes(job.status)).length;
   const canRetry = user?.permissions.has("ops.retry") ?? false;
   return (<>
-    <PageHeader title="Operations" subtitle="Monitor queued work, investigate failures, and retry dead jobs after checking the cause." actions={<Link href="/admin/security" className="btn-outline">View audit log</Link>} />
+    <PageHeader title="Operations" subtitle="Monitor queued work, investigate failures, and retry dead jobs after checking the cause." actions={user?.permissions.has("audit.read") ? <Link href="/admin/security" className="btn-outline">View audit log</Link> : undefined} />
     <Flash error={sp.error} />
     <div className="mb-6 grid gap-3 sm:grid-cols-4">
       <Stat label="Queued" value={queued} href="/admin/operations?status=queued" />

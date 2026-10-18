@@ -2,14 +2,14 @@ import Link from "next/link";
 import { LayoutDashboard, BookOpen, Tags, Award, Bell, BarChart3, GraduationCap, ClipboardCheck, Inbox, Users, KeyRound,
   ShieldCheck, FileBarChart, Building2, Activity, LifeBuoy, Settings, ListChecks, UserPlus, Layers, ScrollText } from "lucide-react";
 import { getT, type MessageKey } from "@/i18n";
-import type { Portal } from "@/lib/permissions";
+import type { Permission, Portal } from "@/lib/permissions";
 import { NavLink } from "./NavLink";
 import { SidebarFrame } from "./SidebarFrame";
 import { WorkspaceBreadcrumbs } from "./WorkspaceBreadcrumbs";
 import { MobileNavMenu } from "./MobileNavMenu";
 import { logoutAction } from "@/app/actions";
 
-type Item = { href: string; key: MessageKey; icon: React.ElementType };
+type Item = { href: string; key: MessageKey; icon: React.ElementType; permission?: Permission | Permission[] };
 type Section = { title: string; items: Item[] };
 
 const NAV: Record<Portal, Section[]> = {
@@ -20,24 +20,24 @@ const NAV: Record<Portal, Section[]> = {
     { href: "/learner/support", key: "nav.support", icon: LifeBuoy } ] }],
   instructor: [
     { title: "Core", items: [
-      { href: "/instructor/dashboard", key: "nav.dashboard", icon: LayoutDashboard }, { href: "/instructor/courses", key: "nav.courses", icon: GraduationCap },
-      { href: "/instructor/submissions", key: "nav.submissions", icon: Inbox }, { href: "/instructor/assignments", key: "nav.grading", icon: ClipboardCheck },
+      { href: "/instructor/dashboard", key: "nav.dashboard", icon: LayoutDashboard }, { href: "/instructor/courses", key: "nav.courses", icon: GraduationCap, permission: ["course.create", "course.update.own", "course.update.any"] },
+      { href: "/instructor/submissions", key: "nav.submissions", icon: Inbox, permission: "course.submit" }, { href: "/instructor/assignments", key: "nav.grading", icon: ClipboardCheck, permission: ["grade.write.assigned", "grade.write.any"] },
       { href: "/learner/notifications", key: "nav.notifications", icon: Bell } ] },
     { title: "Growth", items: [{ href: "/instructor/analytics", key: "nav.analytics", icon: BarChart3 }] }],
   reviewer: [{ title: "Core", items: [
     { href: "/reviewer/dashboard", key: "nav.dashboard", icon: LayoutDashboard }, { href: "/reviewer/queue", key: "nav.queue", icon: Inbox } ] }],
   admin: [
     { title: "Core", items: [
-      { href: "/admin/dashboard", key: "nav.dashboard", icon: LayoutDashboard }, { href: "/admin/users", key: "nav.users", icon: Users },
-      { href: "/admin/courses", key: "nav.courses", icon: GraduationCap }, { href: "/admin/reviews", key: "nav.queue", icon: Inbox },
-      { href: "/admin/categories", key: "nav.categories", icon: Tags }, { href: "/admin/enrollments", key: "nav.enrollments", icon: UserPlus },
-      { href: "/admin/certificates", key: "nav.certificates", icon: Award } ] },
+      { href: "/admin/dashboard", key: "nav.dashboard", icon: LayoutDashboard }, { href: "/admin/users", key: "nav.users", icon: Users, permission: "user.read" },
+      { href: "/admin/courses", key: "nav.courses", icon: GraduationCap, permission: "course.read.any" }, { href: "/admin/reviews", key: "nav.queue", icon: Inbox, permission: ["course.review.assigned", "course.review.any"] },
+      { href: "/admin/categories", key: "nav.categories", icon: Tags, permission: "category.manage" }, { href: "/admin/enrollments", key: "nav.enrollments", icon: UserPlus, permission: "enrollment.read.any" },
+      { href: "/admin/certificates", key: "nav.certificates", icon: Award, permission: "certificate.read.any" } ] },
     { title: "Growth", items: [
-      { href: "/admin/organizations", key: "nav.organizations", icon: Building2 },
-      { href: "/admin/reports", key: "nav.reports", icon: FileBarChart } ] },
+      { href: "/admin/organizations", key: "nav.organizations", icon: Building2, permission: "org.read.any" },
+      { href: "/admin/reports", key: "nav.reports", icon: FileBarChart, permission: "report.read" } ] },
     { title: "Account", items: [
-      { href: "/admin/roles", key: "nav.roles", icon: KeyRound }, { href: "/admin/security", key: "nav.security", icon: ShieldCheck }, { href: "/admin/operations", key: "nav.operations", icon: Activity },
-      { href: "/admin/settings", key: "nav.settings", icon: Settings } ] }],
+      { href: "/admin/roles", key: "nav.roles", icon: KeyRound, permission: "role.assign" }, { href: "/admin/security", key: "nav.security", icon: ShieldCheck, permission: "audit.read" }, { href: "/admin/operations", key: "nav.operations", icon: Activity, permission: "ops.read" },
+      { href: "/admin/settings", key: "nav.settings", icon: Settings, permission: "settings.read" } ] }],
   organization: [{ title: "Core", items: [
     { href: "/organization/dashboard", key: "nav.dashboard", icon: LayoutDashboard }, { href: "/organization/members", key: "nav.members", icon: Users },
     { href: "/organization/cohorts", key: "nav.cohorts", icon: Layers }, { href: "/organization/reports", key: "nav.reports", icon: ScrollText } ] }],
@@ -46,8 +46,14 @@ const NAV: Record<Portal, Section[]> = {
 const TITLES: Record<Portal, string> = { learner: "Learner", instructor: "Instructor studio", reviewer: "Reviewer", admin: "Administration", organization: "Organization", support: "Support desk" };
 const PORTAL_ICONS: Record<Portal, React.ElementType> = { learner: BookOpen, instructor: GraduationCap, reviewer: ClipboardCheck, admin: ShieldCheck, organization: Building2, support: LifeBuoy };
 
-export async function Shell({ portal, portals, name, children }: { portal: Portal; portals: Portal[]; name: string; children: React.ReactNode }) {
+export async function Shell({ portal, portals, name, permissions, children }: { portal: Portal; portals: Portal[]; name: string; permissions: ReadonlySet<string>; children: React.ReactNode }) {
   const t = await getT();
+  const visibleSections = NAV[portal].map((section) => ({
+    ...section,
+    items: section.items.filter((item) => !item.permission || (Array.isArray(item.permission)
+      ? item.permission.some((permission) => permissions.has(permission))
+      : permissions.has(item.permission))),
+  })).filter((section) => section.items.length > 0);
   const initials = name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "U";
   return (
     <div className="flex min-h-screen bg-surface-muted/30">
@@ -60,7 +66,7 @@ export async function Shell({ portal, portals, name, children }: { portal: Porta
           <span className="truncate group-data-[collapsed=true]/sidebar:hidden">{TITLES[portal]}</span>
         </div>
         <nav className="flex flex-1 flex-col gap-5" aria-label={`${TITLES[portal]} navigation`}>
-          {NAV[portal].map((s) => (
+          {visibleSections.map((s) => (
             <section key={s.title}>
               <p className="px-3 pb-1 text-xs font-medium text-ink-faint group-data-[collapsed=true]/sidebar:hidden">{s.title}</p>
               <ul className="space-y-0.5">{s.items.map((i) => <li key={i.href}><NavLink href={i.href} icon={<i.icon size={18} />} label={t(i.key)} /></li>)}</ul>
@@ -98,7 +104,7 @@ export async function Shell({ portal, portals, name, children }: { portal: Porta
           <div className="md:hidden">
             <MobileNavMenu title={TITLES[portal]}>
               <nav aria-label="Primary">
-                {NAV[portal].map((section) => <section key={section.title} className="mb-4 last:mb-0">
+                {visibleSections.map((section) => <section key={section.title} className="mb-4 last:mb-0">
                   <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-faint">{section.title}</p>
                   <ul className="space-y-0.5">{section.items.map((item) => <li key={item.href}><NavLink href={item.href} icon={<item.icon size={18} />} label={t(item.key)} /></li>)}</ul>
                 </section>)}

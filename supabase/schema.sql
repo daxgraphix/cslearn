@@ -879,6 +879,11 @@ begin
     status = case p_decision when 'approved' then 'approved'::version_status else 'changes_requested'::version_status end,
     approved_at = case when p_decision = 'approved' then now() else null end
   where id = v.id;
+  -- Approval goes live in the same transaction when the reviewer is also
+  -- authorized to publish. Other approvers leave it ready for a publisher.
+  if p_decision = 'approved' and has_permission(uid, 'course.publish') then
+    perform publish_version(v.id);
+  end if;
   perform write_audit(uid, 'course.review_' || p_decision::text, 'course_version', v.id::text, jsonb_build_object('review_id', rid));
   -- Deleted submitters have no profile to notify; keep the review history intact.
   if s.submitted_by is not null then
