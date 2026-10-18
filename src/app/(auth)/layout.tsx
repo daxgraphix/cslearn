@@ -53,7 +53,6 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-4 text-xs text-ink-faint sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
           <span>CSGO learning platform</span>
           <nav aria-label="Account support" className="flex flex-wrap gap-x-5 gap-y-2">
-            <Link href="/verify" className="hover:text-brand">Verify a certificate</Link>
             <Link href="/help" className="hover:text-brand">Help center</Link>
             <Link href="/" className="hover:text-brand">Return home</Link>
           </nav>

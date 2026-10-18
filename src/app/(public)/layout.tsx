@@ -20,7 +20,6 @@ export default async function PublicLayout({ children }: { children: React.React
             <Link href="/learning-paths" className="transition-colors hover:text-brand">{t("nav.paths")}</Link>
             <Link href="/about" className="transition-colors hover:text-brand">{t("nav.about")}</Link>
             <Link href="/help" className="transition-colors hover:text-brand">{t("nav.help")}</Link>
-            <Link href="/verify" className="transition-colors hover:text-brand">{t("cert.verify")}</Link>
           </nav>
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <div className="hidden items-center gap-2 sm:flex">
@@ -38,7 +37,6 @@ export default async function PublicLayout({ children }: { children: React.React
                 <Link href="/learning-paths" className="rounded-md px-3 py-2.5 text-sm text-ink-soft hover:bg-surface-muted">{t("nav.paths")}</Link>
                 <Link href="/about" className="rounded-md px-3 py-2.5 text-sm text-ink-soft hover:bg-surface-muted">{t("nav.about")}</Link>
                 <Link href="/help" className="rounded-md px-3 py-2.5 text-sm text-ink-soft hover:bg-surface-muted">{t("nav.help")}</Link>
-                <Link href="/verify" className="rounded-md px-3 py-2.5 text-sm text-ink-soft hover:bg-surface-muted">{t("cert.verify")}</Link>
                 <div className="mt-2 border-t border-surface-line pt-2 sm:hidden">
                   {user ? <Link className="btn-primary w-full" href={dashboardHref}>{t("nav.dashboard")}</Link> : <div className="grid gap-1">
                     <Link className="btn-ghost justify-start" href="/login">{t("nav.login")}</Link>
@@ -74,7 +72,6 @@ export default async function PublicLayout({ children }: { children: React.React
             <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-[#f0c77a]">Support</h2>
             <ul className="mt-2 space-y-2 text-sm text-white/75 lg:mt-3">
               <li><Link className="hover:text-white" href="/help">{t("nav.help")}</Link></li>
-              <li><Link className="hover:text-white" href="/verify">{t("cert.verify")}</Link></li>
             </ul>
           </div>
           <div className="col-span-2 lg:col-span-1">

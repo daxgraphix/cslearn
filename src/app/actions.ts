@@ -20,10 +20,11 @@ import * as storage from "@/services/storage";
 import * as notifications from "@/services/notifications";
 
 /** Runs a service call; on failure redirects back with a safe message, on success revalidates and optionally redirects. */
-async function exec(path: string, fn: () => Promise<unknown>, after?: string | ((r: any) => string)) {
+async function exec(path: string, fn: () => Promise<unknown>, after?: string | ((r: any) => string), refresh: string[] = []) {
   const res = await run(fn);
   if (!res.ok) redirect(`${path}${path.includes("?") ? "&" : "?"}error=${encodeURIComponent(res.error)}`);
   revalidatePath(path);
+  refresh.forEach((route) => revalidatePath(route));
   if (after) redirect(typeof after === "function" ? after(res.data) : after);
 }
 const s = (f: FormData, k: string) => String(f.get(k) ?? "");
@@ -92,44 +93,14 @@ export async function logoutAction() {
   await supabase.auth.signOut();
   redirect("/");
 }
-export async function requestPasswordResetAction(formData: FormData) {
-  const rl = rateLimit(`reset:${await clientIp()}`, 3, 15 * 60_000);
-  const email = s(formData, "email").trim().toLowerCase();
-  if (!rl.ok) redirect(`/forgot-password?error=${encodeURIComponent("Too many reset requests. Wait a few minutes and try again.")}`);
-  if (!email) redirect(`/forgot-password?error=${encodeURIComponent("Enter the email address for your account.")}`);
-  let failed = false;
-  try {
-    // Preserve the standard callback flow for projects still using Supabase's
-    // default email template. The custom template links directly to /auth/confirm.
-    const redirectTo = new URL("/auth/callback?next=%2Freset-password", getSiteUrl()).toString();
-    const { error } = await (await createSupabase()).auth.resetPasswordForEmail(email, { redirectTo });
-    failed = Boolean(error);
-  } catch { failed = true; }
-  if (failed) redirect(`/forgot-password?error=${encodeURIComponent("We couldn't send a reset email right now. Check your connection and try again.")}`);
-  redirect(`/forgot-password?sent=1`);
-}
-export async function verifyRecoveryCodeAction(formData: FormData) {
-  const email = s(formData, "email").trim().toLowerCase();
-  const token = s(formData, "token").replace(/\s/g, "");
-  const rl = rateLimit(`recovery-code:${await clientIp()}`, 6, 15 * 60_000);
-  if (!rl.ok) redirect(`/forgot-password?error=${encodeURIComponent("Too many code attempts. Wait a few minutes and try again.")}`);
-  if (!email || !/^\d{6,8}$/.test(token)) redirect(`/forgot-password?error=${encodeURIComponent("Enter your email and the verification code from the latest reset email.")}`);
-  try {
-    const { error } = await (await createSupabase()).auth.verifyOtp({ email, token, type: "recovery" });
-    if (error) throw error;
-  } catch {
-    redirect(`/forgot-password?error=${encodeURIComponent("That code is invalid or expired. Request a fresh reset email and try again.")}`);
-  }
-  redirect("/reset-password");
-}
 export async function confirmRecoveryLinkAction(formData: FormData) {
   const tokenHash = s(formData, "tokenHash");
-  if (!tokenHash || tokenHash.length > 512) redirect(`/forgot-password?error=${encodeURIComponent("This reset link is incomplete. Request a new reset email and try again.")}`);
+  if (!tokenHash || tokenHash.length > 512) redirect(`/login?error=${encodeURIComponent("This password link is incomplete. Contact your platform administrator for help.")}`);
   try {
     const { error } = await (await createSupabase()).auth.verifyOtp({ token_hash: tokenHash, type: "recovery" });
     if (error) throw error;
   } catch {
-    redirect(`/forgot-password?error=${encodeURIComponent("This reset link has expired or was already used. Request a new one or enter the code from your email.")}`);
+    redirect(`/login?error=${encodeURIComponent("This password link has expired or was already used. Contact your platform administrator for help.")}`);
   }
   redirect("/reset-password");
 }
@@ -272,21 +243,20 @@ export async function decideAction(formData: FormData) {
       : "Choose a valid review decision and try again.";
     redirect(`${path}?error=${encodeURIComponent(message)}`);
   }
-  await exec(path, () => governance.decide(parsed.data), "/reviewer/queue");
+  const notice = parsed.data.decision === "approved" ? "Course approved. It is ready for an authorized publisher."
+    : parsed.data.decision === "changes_requested" ? "Changes requested. The author can now revise and resubmit."
+      : "Course rejected. The author has been notified.";
+  await exec(path, () => governance.decide(parsed.data), `/reviewer/queue?notice=${encodeURIComponent(notice)}`, ["/reviewer/queue", "/reviewer/dashboard", "/admin/reviews", "/admin/courses"]);
 }
 export async function commentAction(formData: FormData) {
   const id = s(formData, "submissionId");
-  await exec(`/reviewer/reviews/${id}`, () => governance.addReviewComment(id, s(formData, "lessonId") || null, s(formData, "body")));
+  await exec(`/reviewer/reviews/${id}`, () => governance.addReviewComment(id, s(formData, "lessonId") || null, s(formData, "body")), `/reviewer/reviews/${id}?notice=${encodeURIComponent("Feedback comment added.")}`);
 }
 export async function assignReviewerAction(formData: FormData) {
-  await exec("/admin/reviews", () => governance.assignReviewer(s(formData, "submissionId"), s(formData, "reviewerId")));
+  await exec("/admin/reviews", () => governance.assignReviewer(s(formData, "submissionId"), s(formData, "reviewerId")), `/admin/reviews?notice=${encodeURIComponent("Reviewer assignment saved.")}`, ["/reviewer/queue", "/reviewer/dashboard"]);
 }
 export async function claimReviewAction(formData: FormData) {
-  await exec("/reviewer/queue", async () => {
-    const claimedId = await governance.claimReview(s(formData, "submissionId"));
-    revalidatePath("/reviewer/dashboard");
-    return claimedId;
-  });
+  await exec("/reviewer/queue", () => governance.claimReview(s(formData, "submissionId")), (claimedId) => `/reviewer/reviews/${claimedId}?notice=${encodeURIComponent("Review claimed. You can now assess the course.")}`, ["/reviewer/dashboard"]);
 }
 export async function publishAction(formData: FormData) {
   await exec("/admin/courses", () => governance.publish(s(formData, "versionId")));
@@ -294,9 +264,16 @@ export async function publishAction(formData: FormData) {
 
 // ---------- admin ----------
 export async function suspendAction(formData: FormData) {
-  await exec("/admin/users", () => admin.suspend({ userId: s(formData, "userId"), reason: s(formData, "reason") }));
+  await exec("/admin/users", () => admin.suspend({ userId: s(formData, "userId"), reason: s(formData, "reason") }), (result) => adminUsersLocation(formData, result.sessionsRevoked ? "Account suspended and active sessions revoked." : "Account suspended. Access is blocked; existing sessions could not be revoked."));
 }
-export async function reinstateAction(formData: FormData) { await exec("/admin/users", () => admin.reinstate(s(formData, "userId"))); }
+export async function reinstateAction(formData: FormData) { await exec("/admin/users", () => admin.reinstate(s(formData, "userId")), adminUsersLocation(formData, "Account reinstated.")); }
+function adminUsersLocation(formData: FormData, notice: string) {
+  const params = new URLSearchParams();
+  if (s(formData, "q")) params.set("q", s(formData, "q"));
+  if (s(formData, "page")) params.set("page", s(formData, "page"));
+  params.set("notice", notice);
+  return `/admin/users?${params.toString()}`;
+}
 export async function roleAction(formData: FormData) {
   const mode = s(formData, "mode");
   if (mode !== "grant" && mode !== "revoke") redirect("/admin/users?error=Choose+a+valid+role+action.");
@@ -306,6 +283,11 @@ export async function roleAction(formData: FormData) {
   if (s(formData, "page")) params.set("page", s(formData, "page"));
   params.set("notice", `${mode === "grant" ? "Granted" : "Removed"} the ${role.replace(/_/g, " ")} role.`);
   await exec("/admin/users", () => admin.setRole(s(formData, "userId"), role, mode === "grant"), `/admin/users?${params.toString()}`);
+}
+export async function inviteUserAction(formData: FormData) {
+  const email = s(formData, "email").trim().toLowerCase();
+  await exec("/admin/users", () => admin.inviteUser({ fullName: s(formData, "fullName"), email, roleKey: s(formData, "roleKey") }),
+    `/admin/users?notice=${encodeURIComponent(`Invitation sent to ${email}.`)}`);
 }
 export async function createPlatformRoleAction(formData: FormData) {
   const name = s(formData, "name").trim();
@@ -317,6 +299,12 @@ export async function createPlatformRoleAction(formData: FormData) {
     description: s(formData, "description"),
     permissions,
   }), `/admin/roles?notice=${encodeURIComponent(`Created the ${name} role. It is ready to assign from Users.`)}`);
+}
+export async function updatePlatformRoleAction(formData: FormData) {
+  const name = s(formData, "name").trim();
+  const permissions = formData.getAll("permissions").map(String);
+  await exec("/admin/roles", () => admin.updatePlatformRole({ key: s(formData, "key"), name, description: s(formData, "description"), permissions }),
+    `/admin/roles?notice=${encodeURIComponent(`Updated the ${name} role.`)}`);
 }
 export async function retryDeadJobAction(formData: FormData) {
   await exec("/admin/operations", () => admin.retryDeadJob(s(formData, "jobId")));

@@ -18,8 +18,8 @@ export default async function ConfirmRecovery({ searchParams }: { searchParams: 
       <input type="hidden" name="tokenHash" value={params.token_hash} />
       <SubmitButton className="btn-primary w-full" pendingLabel="Verifying…">Continue to new password</SubmitButton>
     </form> : <>
-      <Flash error="This reset link is incomplete. Request a new reset email and try again." />
-      <Link href="/forgot-password" className="btn-primary mt-4 block w-full text-center">Request a new reset email</Link>
+      <Flash error="This password link is incomplete. Contact your platform administrator for help." />
+      <Link href="/login" className="btn-primary mt-4 block w-full text-center">Return to log in</Link>
     </>}
   </>;
 }

@@ -1,5 +1,5 @@
 -- =====================================================================
--- Consolidated schema snapshot: migrations 0001-0014
+-- Consolidated schema snapshot: migrations 0001-0016
 -- Fresh Supabase projects only. Existing projects must apply pending migrations.
 -- =====================================================================
 -- =====================================================================
@@ -888,6 +888,82 @@ begin
   return rid;
 end $$;
 
+create or replace function claim_course_review(p_submission uuid)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); s course_submissions%rowtype; v course_versions%rowtype;
+begin
+  if not has_permission(uid, 'course.review.assigned') then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  select * into s from course_submissions where id = p_submission for update;
+  if not found or s.status = 'closed' then raise exception 'This review is no longer open.'; end if;
+  if s.assigned_reviewer_id is not null then raise exception 'This review has already been assigned.'; end if;
+  if s.submitted_by = uid then raise exception 'You cannot review a course you submitted.'; end if;
+  select * into v from course_versions where id = s.version_id;
+  if not found then raise exception 'This course version could not be found.'; end if;
+  if is_course_instructor(uid, v.course_id) then raise exception 'You cannot review a course you authored.'; end if;
+  update course_submissions set assigned_reviewer_id = uid, status = 'in_review' where id = p_submission;
+  perform write_audit(uid, 'course.review_claimed', 'course_submission', p_submission::text,
+    jsonb_build_object('course_id', v.course_id));
+  return p_submission;
+end $$;
+
+create or replace function assign_course_reviewer(p_submission uuid, p_reviewer uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); s course_submissions%rowtype; v course_versions%rowtype;
+begin
+  if not has_permission(uid, 'course.review.any') then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  if not has_permission(p_reviewer, 'course.review.assigned') then
+    raise exception 'Choose an active account with reviewer access.';
+  end if;
+  select * into s from course_submissions where id = p_submission for update;
+  if not found or s.status = 'closed' then raise exception 'This review is no longer open.'; end if;
+  if s.submitted_by = p_reviewer then raise exception 'The course author cannot review their own submission.'; end if;
+  select * into v from course_versions where id = s.version_id;
+  if not found then raise exception 'This course version could not be found.'; end if;
+  if is_course_instructor(p_reviewer, v.course_id) then
+    raise exception 'Choose a reviewer who is not on the course team.';
+  end if;
+  update course_submissions set assigned_reviewer_id = p_reviewer, status = 'in_review'
+    where id = p_submission;
+  perform write_audit(uid, 'course.review_assigned', 'course_submission', p_submission::text,
+    jsonb_build_object('reviewer_id', p_reviewer, 'course_id', v.course_id));
+end $$;
+
+create or replace function add_course_review_comment(p_submission uuid, p_lesson uuid, p_body text)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); s course_submissions%rowtype; v course_versions%rowtype; cid uuid; comment_id uuid; content text;
+begin
+  if not has_permission(uid, 'course.review.assigned') and not has_permission(uid, 'course.review.any') then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  content := btrim(coalesce(p_body, ''));
+  if length(content) < 1 or length(content) > 4000 then
+    raise exception 'Comments must contain between 1 and 4000 characters.';
+  end if;
+  select * into s from course_submissions where id = p_submission for update;
+  if not found or s.status = 'closed' then raise exception 'This review is no longer open.'; end if;
+  if has_permission(uid, 'course.review.assigned') and not has_permission(uid, 'course.review.any')
+     and s.assigned_reviewer_id is distinct from uid then
+    raise exception 'Claim or receive this review before commenting.' using errcode = '42501';
+  end if;
+  if s.submitted_by = uid then raise exception 'You cannot review your own submission.' using errcode = '42501'; end if;
+  select * into v from course_versions where id = s.version_id;
+  if not found then raise exception 'This course version could not be found.'; end if;
+  if is_course_instructor(uid, v.course_id) then raise exception 'Course authors cannot review their own course.' using errcode = '42501'; end if;
+  if p_lesson is not null and not exists (
+    select 1 from lessons l join modules m on m.id = l.module_id
+    where l.id = p_lesson and m.version_id = s.version_id
+  ) then raise exception 'Choose a lesson from this course version.'; end if;
+  insert into review_comments(submission_id, lesson_id, author_id, body)
+    values (p_submission, p_lesson, uid, content) returning id into comment_id;
+  perform write_audit(uid, 'course.review_comment_added', 'course_submission', p_submission::text,
+    jsonb_build_object('comment_id', comment_id, 'lesson_id', p_lesson));
+  return comment_id;
+end $$;
+
 create or replace function publish_version(p_version uuid)
 returns void language plpgsql security definer set search_path = public as $$
 declare uid uuid := auth.uid(); v course_versions%rowtype; old uuid;
@@ -1239,6 +1315,12 @@ revoke execute on function finish_job(uuid,boolean,text) from public, anon, auth
 revoke execute on function write_audit(uuid,text,text,text,jsonb,uuid) from public, anon, authenticated;
 revoke execute on function clone_quiz_questions(uuid,uuid) from public, anon, authenticated;
 revoke execute on function recalc_completion(uuid) from public, anon, authenticated;
+revoke all on function claim_course_review(uuid) from public, anon;
+grant execute on function claim_course_review(uuid) to authenticated;
+revoke all on function assign_course_reviewer(uuid,uuid) from public, anon;
+grant execute on function assign_course_reviewer(uuid,uuid) to authenticated;
+revoke all on function add_course_review_comment(uuid,uuid,text) from public, anon;
+grant execute on function add_course_review_comment(uuid,uuid,text) to authenticated;
 
 do $$
 declare t text;
@@ -1794,6 +1876,30 @@ end $$;
 
 revoke all on function create_platform_role(text, text, text, text[]) from public, anon;
 grant execute on function create_platform_role(text, text, text, text[]) to authenticated;
+
+-- Source: migrations/0016_admin_role_editing.sql
+create or replace function update_platform_role(
+  p_key text, p_name text, p_description text, p_permissions text[]
+) returns void language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); target roles%rowtype;
+begin
+  if not has_permission(uid, 'role.assign') then raise exception 'forbidden' using errcode = '42501'; end if;
+  if p_key is null or p_name is null or length(trim(p_name)) not between 2 and 100 then raise exception 'invalid role details'; end if;
+  if p_description is not null and length(p_description) > 300 then raise exception 'role description is too long'; end if;
+  if p_permissions is null or cardinality(p_permissions) = 0 then raise exception 'select at least one permission'; end if;
+  select * into target from roles where key = p_key for update;
+  if not found then raise exception 'role not found'; end if;
+  if target.key = any(array['owner','admin','learner','instructor','reviewer','support','org_manager','certificate_officer','assessment_moderator','auditor','enrollment_manager','finance']) then raise exception 'system roles cannot be edited'; end if;
+  if target.scope <> 'platform' then raise exception 'organization roles must be edited from organization settings'; end if;
+  if target.is_privileged and not has_permission(uid, 'role.assign.privileged') then raise exception 'forbidden' using errcode = '42501'; end if;
+  if exists (select 1 from unnest(p_permissions) as requested(permission_key) where not exists (select 1 from permissions p where p.key = requested.permission_key) or not has_permission(uid, requested.permission_key)) then raise exception 'forbidden' using errcode = '42501'; end if;
+  update roles set name = trim(p_name), description = nullif(trim(p_description), '') where id = target.id;
+  delete from role_permissions where role_id = target.id;
+  insert into role_permissions(role_id, permission_key) select target.id, requested.permission_key from (select distinct unnest(p_permissions) as permission_key) requested;
+  perform write_audit(uid, 'role.updated', 'role', target.id::text, jsonb_build_object('key', p_key, 'permissions', p_permissions));
+end $$;
+revoke all on function update_platform_role(text, text, text, text[]) from public, anon;
+grant execute on function update_platform_role(text, text, text, text[]) to authenticated;
 
 -- =====================================================================
 -- Source: migrations/0011_nonlearner_review_certificate_read.sql

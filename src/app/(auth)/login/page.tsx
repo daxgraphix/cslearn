@@ -16,6 +16,5 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
       <SubmitButton className="btn-primary w-full" pendingLabel="Signing in…">Log in</SubmitButton>
     </form>
     <div className="mt-4 flex items-center justify-between gap-2 text-sm text-ink-soft"><Link href="/courses" className="text-brand hover:underline">Browse courses</Link><Link href={sp.next ? `/register?next=${encodeURIComponent(sp.next)}` : "/register"} className="text-brand hover:underline">Create account</Link></div>
-    <p className="mt-4 text-center text-sm"><Link href="/forgot-password" className="font-medium text-brand hover:underline">Forgot your password?</Link></p>
   </>;
 }

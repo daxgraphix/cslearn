@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { createPlatformRoleAction } from "@/app/actions";
+import { createPlatformRoleAction, updatePlatformRoleAction } from "@/app/actions";
 import { Flash } from "@/components/Flash";
 import { PageHeader } from "@/components/ui";
 import { roleCatalog } from "@/services/admin";
@@ -71,6 +71,21 @@ export default async function RolesPage({ searchParams }: { searchParams: Promis
               <summary className="cursor-pointer text-sm font-medium text-brand">Review access</summary>
               <div className="mt-3 flex flex-wrap gap-1.5">{role.role_permissions.length ? role.role_permissions.map((permission) => <span key={permission.permission_key} className="chip bg-surface-muted text-ink-soft">{descriptionByKey[permission.permission_key] || permission.permission_key}</span>) : <span className="text-sm text-ink-faint">No direct permissions</span>}</div>
             </details>
+            {(() => {
+              const builtIn = new Set(["owner", "admin", "learner", "instructor", "reviewer", "support", "org_manager", "certificate_officer", "assessment_moderator", "auditor", "enrollment_manager", "finance"]);
+              const canEdit = !builtIn.has(role.key) && (!role.is_privileged || catalog.canAssignPrivileged) && role.role_permissions.every((item) => catalog.permissions.some((permission) => permission.key === item.permission_key));
+              if (!canEdit) return <p className="mt-3 text-xs text-ink-faint">{builtIn.has(role.key) ? "System role · editing is locked" : "Ask an owner to edit this role’s access."}</p>;
+              return <details className="mt-3 border-t border-surface-line pt-3">
+                <summary className="cursor-pointer text-sm font-medium text-brand">Edit role</summary>
+                <form action={updatePlatformRoleAction} className="mt-3 space-y-4">
+                  <input type="hidden" name="key" value={role.key} />
+                  <label className="label">Role name<input name="name" defaultValue={role.name} className="input mt-1" required minLength={2} maxLength={100} /></label>
+                  <label className="label">Description<input name="description" defaultValue={role.description ?? ""} className="input mt-1" maxLength={300} /></label>
+                  <fieldset><legend className="label">Permissions</legend><div className="grid gap-2 sm:grid-cols-2">{catalog.permissions.map((permission) => <label key={permission.key} className="flex items-start gap-2 rounded-lg border border-surface-line p-3 text-sm"><input type="checkbox" name="permissions" value={permission.key} defaultChecked={role.role_permissions.some((item) => item.permission_key === permission.key)} className="mt-0.5 accent-brand" /><span>{permission.description}</span></label>)}</div></fieldset>
+                  <SubmitButton className="btn-primary" pendingLabel="Saving role…">Save role changes</SubmitButton>
+                </form>
+              </details>;
+            })()}
           </article>
         </li>)}</ul>}
     </section>

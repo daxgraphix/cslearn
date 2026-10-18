@@ -1,15 +1,16 @@
 import "server-only";
 import { createSupabase, createAdminSupabase } from "@/lib/supabase/server";
-import { ForbiddenError, requirePermission } from "@/lib/auth";
-import { createPlatformRoleSchema } from "@/lib/validation";
+import { ForbiddenError, requirePageAccess, requirePermission } from "@/lib/auth";
+import { createPlatformRoleSchema, updatePlatformRoleSchema, inviteUserSchema } from "@/lib/validation";
 import { suspendSchema } from "@/lib/validation";
+import { getSiteUrl } from "@/lib/site-url";
 import type { z } from "zod";
 
 export async function listUsers(search?: string, page = 1) {
-  await requirePermission("user.read");
-  // Explicit app authorization above allows this staff list to bypass profile RLS;
-  // relying on the session query can silently return an empty list for scoped roles.
-  const supabase = createAdminSupabase();
+  await requirePageAccess("user.read");
+  // Keep this read on the signed-in user's client so the staff-read and role-read
+  // policies constrain the result without requiring the service-role secret.
+  const supabase = await createSupabase();
   let q = supabase.from("profiles").select("id, full_name, status, created_at, user_roles(roles(key, name))", { count: "exact" });
   const term = search?.trim().replace(/[%_]/g, "");
   if (term) q = q.ilike("full_name", `%${term}%`);
@@ -29,7 +30,17 @@ export async function suspend(input: z.input<typeof suspendSchema>) {
   const { error } = await supabase.rpc("suspend_user", { p_user: v.userId, p_reason: v.reason });
   if (error) throw error;
   // Revoke active sessions (service role): suspended users can no longer refresh tokens.
-  await createAdminSupabase().auth.admin.signOut(v.userId, "global").catch(() => undefined);
+  try {
+    const { error: sessionError } = await createAdminSupabase().auth.admin.signOut(v.userId, "global");
+    if (sessionError) {
+      console.error("[admin:suspend-session-revoke]", { code: sessionError.status, message: sessionError.message });
+      return { sessionsRevoked: false };
+    }
+    return { sessionsRevoked: true };
+  } catch (error) {
+    console.error("[admin:suspend-session-revoke]", error);
+    return { sessionsRevoked: false };
+  }
 }
 export async function reinstate(userId: string) {
   await requirePermission("user.suspend");
@@ -74,6 +85,31 @@ export async function createPlatformRole(input: unknown) {
   });
   if (error?.code === "23505") throw Object.assign(new Error("That system ID is already in use. Choose a different one."), { code: "P0001" });
   if (error) throw error;
+}
+export async function updatePlatformRole(input: unknown) {
+  const user = await requirePermission("role.assign");
+  const role = updatePlatformRoleSchema.parse(input);
+  const permissions = [...new Set(role.permissions)];
+  if (permissions.some((permission) => !user.permissions.has(permission))) throw new ForbiddenError();
+  const { error } = await (await createSupabase()).rpc("update_platform_role", {
+    p_key: role.key, p_name: role.name, p_description: role.description || null, p_permissions: permissions,
+  });
+  if (error) throw error;
+}
+export async function inviteUser(input: unknown) {
+  await requirePermission("user.read");
+  await requirePermission("role.assign");
+  const invite = inviteUserSchema.parse(input);
+  const catalog = await roleCatalog();
+  const role = catalog.roles.find((item: any) => item.key === invite.roleKey);
+  if (!role || (role.is_privileged && !catalog.canAssignPrivileged)) throw new ForbiddenError();
+  if (role.role_permissions.some((item: any) => !catalog.permissions.some((permission) => permission.key === item.permission_key))) throw new ForbiddenError("You cannot assign this role's full permission set.");
+  const admin = createAdminSupabase();
+  const redirectTo = new URL("/auth/callback?next=%2Freset-password", getSiteUrl()).toString();
+  const { data, error } = await admin.auth.admin.inviteUserByEmail(invite.email, { data: { full_name: invite.fullName }, redirectTo });
+  if (error) throw new Error("Could not send the invitation. Check the email address and Supabase email delivery settings.");
+  if (!data.user) throw new Error("The invitation was sent, but the account was not returned. Refresh the user list before inviting again.");
+  await setRole(data.user.id, invite.roleKey, true);
 }
 export async function overview() {
   await requirePermission("report.read");

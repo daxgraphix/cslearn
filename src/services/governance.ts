@@ -1,7 +1,7 @@
 import "server-only";
-import { createSupabase, createAdminSupabase } from "@/lib/supabase/server";
+import { createSupabase } from "@/lib/supabase/server";
 import { requirePermission, requirePageAccess, requireCourseTeam } from "@/lib/auth";
-import { reviewSchema } from "@/lib/validation";
+import { reviewAssignmentSchema, reviewCommentSchema, reviewSchema } from "@/lib/validation";
 import type { z } from "zod";
 
 export async function submitForReview(versionId: string, note?: string) {
@@ -16,9 +16,9 @@ export async function submitForReview(versionId: string, note?: string) {
 }
 
 export async function reviewQueue() {
-  const user = await requirePermission("course.review.assigned", "course.review.any");
-  const admin = createAdminSupabase();
-  let q = admin.from("course_submissions")
+  const user = await requirePageAccess("course.review.assigned", "course.review.any");
+  const supabase = await createSupabase();
+  let q = supabase.from("course_submissions")
     .select("id, created_at, note, assigned_reviewer_id, submitted_by, course_versions(id, title, version_number, course_id, courses(slug, owner_id, course_instructors(user_id)))")
     .neq("status", "closed").order("created_at");
   if (!user.permissions.has("course.review.any")) q = q.or(`assigned_reviewer_id.is.null,assigned_reviewer_id.eq.${user.id}`);
@@ -33,42 +33,22 @@ export async function reviewQueue() {
 
 /** Let a reviewer claim only open, unassigned work. The conditional update makes claims race-safe. */
 export async function claimReview(submissionId: string) {
-  const user = await requirePermission("course.review.assigned");
-  const admin = createAdminSupabase();
-  const { data: submission, error: submissionError } = await admin.from("course_submissions")
-    .select("id, status, assigned_reviewer_id, submitted_by, version_id").eq("id", submissionId).maybeSingle();
-  if (submissionError) throw submissionError;
-  if (!submission || submission.status === "closed") throw new Error("This review is no longer open.");
-  if (submission.assigned_reviewer_id) throw new Error("This review has already been assigned.");
-  if (submission.submitted_by === user.id) throw new Error("You cannot review a course you submitted.");
-
-  const { data: version, error: versionError } = await admin.from("course_versions").select("course_id").eq("id", submission.version_id).single();
-  if (versionError) throw versionError;
-  if (!version) throw new Error("This course version could not be found.");
-  const [{ data: course, error: courseError }, { data: membership, error: membershipError }] = await Promise.all([
-    admin.from("courses").select("owner_id").eq("id", version.course_id).single(),
-    admin.from("course_instructors").select("user_id").eq("course_id", version.course_id).eq("user_id", user.id).maybeSingle(),
-  ]);
-  if (courseError) throw courseError;
-  if (!course) throw new Error("This course could not be found.");
-  if (membershipError) throw membershipError;
-  if (course.owner_id === user.id || membership) throw new Error("You cannot review a course you authored.");
-
-  const { data: claimed, error } = await admin.from("course_submissions")
-    .update({ assigned_reviewer_id: user.id, status: "in_review" })
-    .eq("id", submissionId).is("assigned_reviewer_id", null).neq("status", "closed").select("id").maybeSingle();
+  const id = reviewAssignmentSchema.shape.submissionId.parse(submissionId);
+  await requirePermission("course.review.assigned");
+  const supabase = await createSupabase();
+  const { data: claimed, error } = await supabase.rpc("claim_course_review", { p_submission: id });
   if (error) throw error;
-  if (!claimed) throw new Error("This review was claimed by someone else. Refresh the queue to see the latest assignments.");
-  await admin.rpc("write_audit", { p_actor: user.id, p_action: "course.review_claimed", p_type: "course_submission", p_id: submissionId, p_meta: { course_id: version.course_id } });
-  return claimed.id;
+  return claimed as string;
 }
 
 export async function assignReviewer(submissionId: string, reviewerId: string) {
+  const input = reviewAssignmentSchema.parse({ submissionId, reviewerId });
   await requirePermission("course.review.any");
-  const admin = createAdminSupabase();
-  const { data: has } = await admin.rpc("has_permission", { uid: reviewerId, perm: "course.review.assigned" });
-  if (!has) throw new Error("User cannot review courses");
-  const { error } = await admin.from("course_submissions").update({ assigned_reviewer_id: reviewerId, status: "in_review" }).eq("id", submissionId);
+  const supabase = await createSupabase();
+  const { error } = await supabase.rpc("assign_course_reviewer", {
+    p_submission: input.submissionId,
+    p_reviewer: input.reviewerId,
+  });
   if (error) throw error;
 }
 
@@ -82,11 +62,14 @@ export async function decide(input: z.input<typeof reviewSchema>) {
 }
 
 export async function addReviewComment(submissionId: string, lessonId: string | null, body: string) {
-  const user = await requirePermission("course.review.assigned", "course.review.any");
+  const input = reviewCommentSchema.parse({ submissionId, lessonId, body });
+  await requirePermission("course.review.assigned", "course.review.any");
   const supabase = await createSupabase();
-  const { data: s } = await supabase.from("course_submissions").select("id").eq("id", submissionId).single(); // RLS: visible only if reviewer/author/any
-  if (!s) throw new Error("Submission not found");
-  const { error } = await createAdminSupabase().from("review_comments").insert({ submission_id: submissionId, lesson_id: lessonId, author_id: user.id, body: body.slice(0, 4000) });
+  const { error } = await supabase.rpc("add_course_review_comment", {
+    p_submission: input.submissionId,
+    p_lesson: input.lessonId,
+    p_body: input.body,
+  });
   if (error) throw error;
 }
 
@@ -109,8 +92,8 @@ export async function getReviewDetail(submissionId: string) {
   // Page access failures should be routed to the access explanation, not rendered
   // as an unhandled server error screen.
   const user = await requirePageAccess("course.review.assigned", "course.review.any");
-  const admin = createAdminSupabase();
-  const { data: submission, error: submissionError } = await admin.from("course_submissions")
+  const supabase = await createSupabase();
+  const { data: submission, error: submissionError } = await supabase.from("course_submissions")
     .select("id, version_id, submitted_by, assigned_reviewer_id, status, note")
     .eq("id", submissionId).maybeSingle();
   if (submissionError) throw submissionError;
@@ -119,15 +102,15 @@ export async function getReviewDetail(submissionId: string) {
   if (!canReviewAny && submission.assigned_reviewer_id !== user.id) return null;
   if (submission.submitted_by === user.id) return null;
 
-  const { data: version, error: versionError } = await admin.from("course_versions")
-    .select("id, title, status, version_number, course_id")
+  const { data: version, error: versionError } = await supabase.from("course_versions")
+    .select("id, title, subtitle, description, objectives, prerequisites, accessibility_notes, level, estimated_minutes, pass_mark, status, version_number, course_id")
     .eq("id", submission.version_id).maybeSingle();
   if (versionError) throw versionError;
   if (!version) return null;
   const [{ data: course, error: courseError }, { data: moduleRows, error: modulesError }, { data: comments, error: commentsError }] = await Promise.all([
-    admin.from("courses").select("owner_id, course_instructors(user_id)").eq("id", version.course_id).maybeSingle(),
-    admin.from("modules").select("id, title, position").eq("version_id", version.id).order("position"),
-    admin.from("review_comments").select("id, body, lesson_id, created_at").eq("submission_id", submissionId).order("created_at"),
+    supabase.from("courses").select("owner_id, course_instructors(user_id)").eq("id", version.course_id).maybeSingle(),
+    supabase.from("modules").select("id, title, description, position").eq("version_id", version.id).order("position"),
+    supabase.from("review_comments").select("id, body, lesson_id, created_at").eq("submission_id", submissionId).order("created_at"),
   ]);
   if (courseError) throw courseError;
   if (modulesError) throw modulesError;
@@ -136,7 +119,9 @@ export async function getReviewDetail(submissionId: string) {
   const modules = (moduleRows ?? []) as any[];
   const moduleIds = modules.map((module) => module.id);
   const { data: lessonRows, error: lessonsError } = moduleIds.length
-    ? await admin.from("lessons").select("id, module_id, title, type, position").in("module_id", moduleIds).order("position")
+    ? await supabase.from("lessons")
+      .select("id, module_id, title, type, position, body, duration_minutes, is_required, lesson_resources(title, kind, url, mime_type, size_bytes), quizzes(pass_mark, max_attempts, time_limit_seconds, questions(id, prompt, type, points, answer_options(label)))")
+      .in("module_id", moduleIds).order("position")
     : { data: [], error: null };
   if (lessonsError) throw lessonsError;
   const lessonsByModule = new Map<string, any[]>();

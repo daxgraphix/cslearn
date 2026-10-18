@@ -16,6 +16,17 @@ export const createPlatformRoleSchema = z.object({
   description: z.string().trim().max(300).optional(),
   permissions: z.array(z.string().min(1).max(100)).min(1).max(50),
 });
+export const updatePlatformRoleSchema = z.object({
+  key: z.string().trim().min(2).max(48).regex(/^[a-z][a-z0-9_]*$/),
+  name: z.string().trim().min(2).max(100),
+  description: z.string().trim().max(300).optional(),
+  permissions: z.array(z.string().min(1).max(100)).min(1).max(50),
+});
+export const inviteUserSchema = z.object({
+  fullName: z.string().trim().min(2).max(120),
+  email: z.string().trim().toLowerCase().email(),
+  roleKey: z.string().trim().min(2).max(48).regex(/^[a-z][a-z0-9_]*$/),
+});
 
 export const createCourseSchema = z.object({ title: z.string().trim().min(3).max(140), slug, categoryId: uuid.optional().or(z.literal("")) });
 export const courseMetaSchema = z.object({
@@ -53,6 +64,8 @@ export const questionSchema = z.object({
   if (q.type === "short_text" && q.accepted.length === 0) ctx.addIssue({ code: "custom", message: "Add accepted answers" });
 });
 export const reviewSchema = z.object({ submissionId: uuid, decision: z.enum(["approved", "rejected", "changes_requested"]), summary: z.string().trim().min(3).max(4000) });
+export const reviewAssignmentSchema = z.object({ submissionId: uuid, reviewerId: uuid });
+export const reviewCommentSchema = z.object({ submissionId: uuid, lessonId: uuid.nullable(), body: z.string().trim().min(1).max(4000) });
 export const suspendSchema = z.object({ userId: uuid, reason: z.string().trim().min(5).max(500) });
 export const answersSchema = z.array(z.object({ question_id: uuid, option_ids: z.array(uuid).max(10).optional(), text: z.string().max(2000).optional() })).max(200);
 export const ticketSchema = z.object({ subject: z.string().trim().min(3).max(160), category: z.enum(["general", "access", "academic", "security", "privacy"]), body: z.string().trim().min(5).max(5000) });

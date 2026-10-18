@@ -11,8 +11,8 @@ export async function GET(req: Request) {
   const next = url.searchParams.get("next") ?? "/learner/dashboard";
   const providerError = url.searchParams.get("error_code") ?? url.searchParams.get("error");
   const isRecovery = type === "recovery" || next === "/reset-password";
-  const expiredMessage = "This email link has expired or was already used. Request a new reset email, or enter the verification code from your email.";
-  const failureUrl = (message: string) => new URL(`${isRecovery ? "/forgot-password" : "/login"}?error=${encodeURIComponent(message)}`, url.origin);
+  const expiredMessage = "This email link has expired or was already used. Contact your platform administrator for help.";
+  const failureUrl = (message: string) => new URL(`/login?error=${encodeURIComponent(message)}`, url.origin);
   if (providerError) return NextResponse.redirect(failureUrl(expiredMessage));
 
   const supabase = await createSupabase();
@@ -24,7 +24,7 @@ export async function GET(req: Request) {
     const result = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: otpType });
     error = result.error;
   } else {
-    return NextResponse.redirect(failureUrl(isRecovery ? "This reset email link is incomplete. Request a new reset email or enter its verification code." : "This email link is incomplete. Request a new link and try again."));
+    return NextResponse.redirect(failureUrl(isRecovery ? "This password link is incomplete. Contact your platform administrator for help." : "This email link is incomplete. Request a new link and try again."));
   }
   if (error) return NextResponse.redirect(failureUrl(expiredMessage));
 

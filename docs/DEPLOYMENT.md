@@ -7,9 +7,9 @@
 3. In **Project Settings → API**, copy the project URL, anon/public key, and service role key.
 4. In **Authentication → URL Configuration**, set the Site URL to your production URL (for example, `https://your-project.vercel.app`). Add your production URL and any custom domain as Redirect URLs. Keep localhost URLs for local development if needed.
 
-`schema.sql` is the consolidated snapshot through migrations `0001` to `0014`, including role-based course review and account-deletion foreign-key behavior. Run it once on a new Supabase project only. It is not idempotent: rerunning it on an initialized database can produce duplicate-object errors such as `42710` for `account_status`.
+`schema.sql` is the consolidated snapshot through migrations `0001` to `0016`, including role-based course review, account deletion, transactional review actions, and role editing. Run it once on a new Supabase project only. It is not idempotent: rerunning it on an initialized database can produce duplicate-object errors such as `42710` for `account_status`.
 
-For an existing project, do not rerun `schema.sql`. An error like `42710: type "account_status" already exists` means the database is already initialized; do not drop the existing database objects to get past it. Apply only migrations that have not already run, in numeric order. Migration `0014_account_deletion_foreign_keys.sql` defines what is removed with a deleted account and which historical records are retained with the user's attribution detached. Delete accounts through the Supabase Auth Admin API; deleting from `profiles` alone is blocked by its reference to `auth.users`.
+For an existing project, do not rerun `schema.sql`. An error like `42710: type "account_status" already exists` means the database is already initialized; do not drop the existing database objects to get past it. Apply only migrations that have not already run, in numeric order. Migration `0014_account_deletion_foreign_keys.sql` defines account deletion behavior; `0015_review_workflow_actions.sql` adds permission-checked, race-safe review actions; `0016_admin_role_editing.sql` adds audited updates for custom roles. Delete accounts through the Supabase Auth Admin API; deleting from `profiles` alone is blocked by its reference to `auth.users`.
 
 ## 2. Deploy the app
 

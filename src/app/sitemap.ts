@@ -10,7 +10,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/learning-paths`, changeFrequency: "weekly", priority: 0.8 },
     { url: `${base}/about`, changeFrequency: "monthly", priority: 0.5 },
     { url: `${base}/help`, changeFrequency: "monthly", priority: 0.4 },
-    { url: `${base}/verify`, changeFrequency: "monthly", priority: 0.4 },
   ];
   const supabase = await createSupabase();
   const courses: { slug: string; updated_at: string }[] = [];
