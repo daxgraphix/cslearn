@@ -7,6 +7,7 @@ import { StatusDot, Badge } from "@/components/ui";
 import { Flash } from "@/components/Flash";
 import { addModuleAction, deleteModuleAction, addLessonAction, deleteLessonAction, moveAction, submitReviewAction, createRevisionAction, saveMetaAction } from "@/app/actions";
 import { cn } from "@/lib/utils";
+import { VideoLessonUploadForm } from "@/components/VideoLessonUploadForm";
 
 export const metadata = { title: "Course studio" };
 const ICON: Record<string, React.ElementType> = { video: PlayCircle, text: FileText, quiz: ClipboardList, external: Link2, document: FileDown, live: Radio, assignment: Upload, practical: ListChecks, survey: ListChecks };
@@ -92,13 +93,29 @@ export default async function Builder({ params, searchParams }: { params: Promis
                 </ul>
                 {editable && (
                   <details className="border-t border-surface-line"><summary className="cursor-pointer px-6 py-4 text-brand hover:bg-surface-muted"><Plus className="mr-2 inline" size={16} />Add lesson</summary>
-                    <form action={addLessonAction} className="grid gap-3 px-6 pb-6 md:grid-cols-2"><input type="hidden" name="courseId" value={courseId} /><input type="hidden" name="moduleId" value={m.id} />
-                      <input name="title" className="input" placeholder="Lesson title" required aria-label="Lesson title" />
-                      <select name="type" className="input" aria-label="Lesson type">{["video", "text", "document", "external", "quiz", "assignment", "practical", "live", "survey"].map((t) => <option key={t} value={t}>{label(t)}</option>)}</select>
-                      <input name="url" type="url" className="input" placeholder="Video or resource URL (optional)" aria-label="URL" />
-                      <input name="durationMinutes" type="number" min={0} className="input" placeholder="Minutes (optional)" aria-label="Duration in minutes" />
-                      <textarea name="text" rows={3} className="input md:col-span-2" placeholder="Lesson text (for text lessons)" aria-label="Lesson text" />
-                      <div className="md:col-span-2"><button className="btn-primary">Add lesson</button></div></form></details>)}
+                    <div className="grid gap-5 px-6 pb-6 lg:grid-cols-2">
+                      <div className="space-y-4">
+                        <section className="rounded-xl border border-brand/20 bg-brand-soft/30 p-4">
+                          <h4 className="font-semibold">Add a video link</h4><p className="mt-1 text-xs leading-5 text-ink-soft">Paste a YouTube, Vimeo, or direct video URL. The link is embedded in the learner player.</p>
+                          <form action={addLessonAction} className="mt-3 space-y-3"><input type="hidden" name="courseId" value={courseId} /><input type="hidden" name="moduleId" value={m.id} /><input type="hidden" name="type" value="video" />
+                            <label className="label">Lesson title<input name="title" className="input mt-1" placeholder="For example, Welcome and course overview" required minLength={2} maxLength={160} /></label>
+                            <label className="label">Video URL<input name="url" type="url" className="input mt-1" placeholder="https://youtu.be/…" required /></label>
+                            <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end"><label className="label">Duration in minutes <span className="font-normal text-ink-faint">(optional)</span><input name="durationMinutes" type="number" min={1} max={1000} className="input mt-1" /></label><label className="flex min-h-11 items-center gap-2 text-sm text-ink-soft"><input type="checkbox" name="isRequired" defaultChecked className="accent-brand" />Required</label></div>
+                            <button className="btn-primary">Add linked video</button>
+                          </form>
+                        </section>
+                        <VideoLessonUploadForm courseId={courseId} versionId={v.id} moduleId={m.id} />
+                      </div>
+                      <form action={addLessonAction} className="space-y-3 rounded-xl border border-surface-line p-4"><div><h4 className="font-semibold">Add another lesson type</h4><p className="mt-1 text-xs text-ink-soft">Create reading, quiz, assignment, live, or external lessons.</p></div><input type="hidden" name="courseId" value={courseId} /><input type="hidden" name="moduleId" value={m.id} />
+                        <label className="label">Lesson title<input name="title" className="input mt-1" placeholder="Lesson title" required minLength={2} maxLength={160} /></label>
+                        <label className="label">Lesson type<select name="type" className="input mt-1">{["text", "document", "external", "quiz", "assignment", "practical", "live", "survey"].map((t) => <option key={t} value={t}>{label(t)}</option>)}</select></label>
+                        <label className="label">Resource link <span className="font-normal text-ink-faint">(optional)</span><input name="url" type="url" className="input mt-1" placeholder="https://…" /></label>
+                        <label className="label">Duration in minutes <span className="font-normal text-ink-faint">(optional)</span><input name="durationMinutes" type="number" min={0} max={1000} className="input mt-1" /></label>
+                        <label className="label">Lesson text<textarea name="text" rows={4} className="input mt-1" placeholder="Add reading content for text lessons" /></label>
+                        <label className="flex items-center gap-2 text-sm text-ink-soft"><input type="checkbox" name="isRequired" defaultChecked className="accent-brand" />Required lesson</label>
+                        <button className="btn-outline">Add lesson</button>
+                      </form>
+                    </div></details>)}
               </article>);
           })}
         </section>

@@ -7,10 +7,11 @@ import { cn } from "@/lib/utils";
 const ICON: Record<string, React.ElementType> = { video: PlayCircle, text: FileText, quiz: ClipboardList, external: Link2, document: FileDown, live: Radio, assignment: Upload };
 
 function embedUrl(url: string) {
-  try { const u = new URL(url);
-    if (u.hostname.includes("youtube.com") && u.searchParams.get("v")) return `https://www.youtube-nocookie.com/embed/${u.searchParams.get("v")}`;
-    if (u.hostname === "youtu.be") return `https://www.youtube-nocookie.com/embed${u.pathname}`;
-    if (u.hostname.includes("vimeo.com")) return `https://player.vimeo.com/video${u.pathname}`;
+  try { const u = new URL(url); const host = u.hostname.toLowerCase();
+    const youtubeId = u.searchParams.get("v") ?? u.pathname.match(/^\/(?:embed|shorts)\/([A-Za-z0-9_-]{11})/)?.[1];
+    if (["youtube.com", "www.youtube.com", "m.youtube.com"].includes(host) && youtubeId && /^[A-Za-z0-9_-]{11}$/.test(youtubeId)) return `https://www.youtube-nocookie.com/embed/${youtubeId}`;
+    if (["youtu.be", "www.youtu.be"].includes(host)) { const id = u.pathname.split("/").filter(Boolean)[0]; if (id && /^[A-Za-z0-9_-]{11}$/.test(id)) return `https://www.youtube-nocookie.com/embed/${id}`; }
+    if (["vimeo.com", "www.vimeo.com", "player.vimeo.com"].includes(host)) { const id = u.pathname.match(/\/(?:video\/)?(\d+)(?:\/|$)/)?.[1]; if (id) return `https://player.vimeo.com/video/${id}`; }
   } catch { /* invalid */ } return null;
 }
 
@@ -43,9 +44,10 @@ export function Player({ courseId, title, enrollmentId, modules, completed, curr
         {!lesson ? <div className="grid min-h-40 place-items-center text-center"><p className="text-sm text-ink-soft">This course has no lessons yet.</p></div> : <>
           <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-medium text-brand">Lesson {idx + 1} of {flat.length}</p><h1 className="mt-1 break-words text-xl font-semibold sm:text-2xl">{lesson.title}</h1></div><span className="chip shrink-0 bg-surface-muted capitalize text-ink-soft">{lesson.type.replace(/_/g, " ")}</span></div>
           <div className="mt-5 space-y-5">
-            {lesson.type === "video" && (() => { const url = lesson.body?.url as string | undefined; const e = url ? embedUrl(url) : null;
-              return e ? <div className="aspect-video overflow-hidden rounded-xl bg-black"><iframe src={e} title={lesson.title} className="h-full w-full" allow="encrypted-media; picture-in-picture" allowFullScreen sandbox="allow-scripts allow-same-origin allow-presentation" /></div>
-                : url ? <video controls className="w-full rounded-xl" src={url}><track kind="captions" /></video> : <p className="text-ink-soft">Video not available.</p>; })()}
+            {lesson.type === "video" && (() => { const url = lesson.body?.url as string | undefined; const e = url ? embedUrl(url) : null; const uploaded = lesson.lesson_resources?.find((resource: any) => resource.id === lesson.body?.resource_id);
+              return e ? <div className="aspect-video overflow-hidden rounded-xl bg-black"><iframe src={e} title={lesson.title} className="h-full w-full" allow="encrypted-media; picture-in-picture" allowFullScreen sandbox="allow-scripts allow-same-origin allow-presentation" />
+                : uploaded ? <video controls playsInline preload="metadata" className="w-full rounded-xl bg-black" src={`/learner/resource/${uploaded.id}`}><track kind="captions" /></video>
+                : url ? <video controls playsInline preload="metadata" className="w-full rounded-xl bg-black" src={url}><track kind="captions" /></video> : <p className="text-ink-soft">Video not available.</p>; })()}
             {lesson.type === "text" && <div className="prose max-w-none whitespace-pre-line leading-relaxed">{lesson.body?.html}</div>}
             {lesson.type === "external" && lesson.body?.url && <a className="btn-outline" href={lesson.body.url} target="_blank" rel="noopener noreferrer nofollow">Open resource</a>}
             {lesson.type === "document" && <p className="text-sm text-ink-soft">Downloads are available below.</p>}

@@ -52,6 +52,8 @@ export const lessonSchema = z.object({
   isRequired: z.coerce.boolean().default(true),
   url: z.string().url().optional().or(z.literal("")),
   text: z.string().max(50000).optional(),
+}).superRefine((lesson, ctx) => {
+  if (lesson.type === "video" && !lesson.url) ctx.addIssue({ code: "custom", path: ["url"], message: "Add a video URL or upload an MP4 video." });
 });
 export const questionSchema = z.object({
   quizId: uuid, type: z.enum(["single", "multiple", "true_false", "short_text"]), prompt: z.string().trim().min(3).max(2000),

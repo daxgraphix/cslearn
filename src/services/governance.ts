@@ -1,5 +1,5 @@
 import "server-only";
-import { createSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase, createSupabase } from "@/lib/supabase/server";
 import { requirePermission, requirePageAccess, requireCourseTeam } from "@/lib/auth";
 import { reviewAssignmentSchema, reviewCommentSchema, reviewSchema } from "@/lib/validation";
 import type { z } from "zod";
@@ -17,7 +17,9 @@ export async function submitForReview(versionId: string, note?: string) {
 
 export async function reviewQueue() {
   const user = await requirePageAccess("course.review.assigned", "course.review.any");
-  const supabase = await createSupabase();
+  // Staff read is explicitly permission-gated above. Use the server-only client
+  // so RLS on course content cannot silently hide submissions from reviewers.
+  const supabase = createAdminSupabase();
   let q = supabase.from("course_submissions")
     .select("id, created_at, note, assigned_reviewer_id, submitted_by, course_versions(id, title, version_number, course_id, courses(slug, owner_id, course_instructors(user_id)))")
     .neq("status", "closed").order("created_at");
@@ -92,7 +94,9 @@ export async function getReviewDetail(submissionId: string) {
   // Page access failures should be routed to the access explanation, not rendered
   // as an unhandled server error screen.
   const user = await requirePageAccess("course.review.assigned", "course.review.any");
-  const supabase = await createSupabase();
+  // This privileged read is safe only after checking queue access, assignment,
+  // author identity, and course-team membership below.
+  const supabase = createAdminSupabase();
   const { data: submission, error: submissionError } = await supabase.from("course_submissions")
     .select("id, version_id, submitted_by, assigned_reviewer_id, status, note")
     .eq("id", submissionId).maybeSingle();

@@ -25,9 +25,10 @@ export async function signedResourceUrl(resourceId: string) {
   const user = await requireUser();
   const supabase = await createSupabase();
   // RLS on lesson_resources already limits rows to readable versions (enrolled / team / reviewer)
-  const { data: r } = await supabase.from("lesson_resources").select("storage_path, lessons(modules(course_versions(course_id)))").eq("id", resourceId).single();
+  const { data: r } = await supabase.from("lesson_resources").select("storage_path, mime_type, lessons(modules(course_versions(course_id)))").eq("id", resourceId).single();
   if (!r?.storage_path) return null;
-  const { data } = await createAdminSupabase().storage.from("course-private").createSignedUrl(r.storage_path, TTL, { download: true });
+  const inlineVideo = r.mime_type?.startsWith("video/") ?? false;
+  const { data } = await createAdminSupabase().storage.from("course-private").createSignedUrl(r.storage_path, TTL, { download: !inlineVideo });
   void user;
   return data?.signedUrl ?? null;
 }

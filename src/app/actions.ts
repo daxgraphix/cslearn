@@ -197,7 +197,7 @@ export async function deleteModuleAction(formData: FormData) {
 export async function addLessonAction(formData: FormData) {
   await exec(`/instructor/courses/${s(formData, "courseId")}/builder`, () => authoring.addLesson({
     moduleId: s(formData, "moduleId"), title: s(formData, "title"), type: s(formData, "type") as any,
-    durationMinutes: (s(formData, "durationMinutes") || undefined) as any, isRequired: formData.get("isRequired") !== "off", url: s(formData, "url") || undefined, text: s(formData, "text") || undefined,
+    durationMinutes: (s(formData, "durationMinutes") || undefined) as any, isRequired: formData.get("isRequired") === "on", url: s(formData, "url") || undefined, text: s(formData, "text") || undefined,
   }));
 }
 export async function deleteLessonAction(formData: FormData) {
