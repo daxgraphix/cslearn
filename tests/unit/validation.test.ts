@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { questionSchema, registerSchema, safeFileName, validateUpload } from "@/lib/validation";
+import { getSiteUrl } from "@/lib/site-url";
 import { toCsv } from "@/services/reporting.csv";
 
 describe("validation", () => {
@@ -23,5 +24,12 @@ describe("validation", () => {
     expect(validateUpload("course-public", { name: "x.svg", type: "image/svg+xml", size: 10 })).not.toBeNull();
   });
   it("sanitizes file names", () => expect(safeFileName("../../etc/pass wd.pdf")).not.toMatch(/[\/ ]/));
+  it("normalizes password-reset callback origins", () => {
+    expect(getSiteUrl("csgot.vercel.app", true)).toBe("https://csgot.vercel.app");
+    expect(getSiteUrl("https://csgot.vercel.app/", true)).toBe("https://csgot.vercel.app");
+    expect(getSiteUrl("localhost:3000", false)).toBe("http://localhost:3000");
+    expect(getSiteUrl(undefined, false)).toBe("http://localhost:3000");
+    expect(() => getSiteUrl(undefined, true)).toThrow("NEXT_PUBLIC_SITE_URL must be set in production");
+  });
   it("neutralizes CSV formula injection", () => expect(toCsv([{ a: "=SUM(A1)" }])).toContain("'=SUM(A1)"));
 });

@@ -7,9 +7,9 @@
 3. In **Project Settings → API**, copy the project URL, anon/public key, and service role key.
 4. In **Authentication → URL Configuration**, set the Site URL to your production URL (for example, `https://your-project.vercel.app`). Add your production URL and any custom domain as Redirect URLs. Keep localhost URLs for local development if needed.
 
-`schema.sql` is the consolidated snapshot through migrations `0001` to `0010`, including starter roles, permissions, categories, settings, the CSGO platform name, the cohort RLS recursion fix, and admin-created platform roles. Run it once on a new Supabase project only. It is not idempotent: rerunning it on an initialized database can produce duplicate-object errors such as `42710` for `account_status`.
+`schema.sql` is the consolidated snapshot through migrations `0001` to `0011`, including starter roles, permissions, categories, settings, the CSGO platform name, the cohort RLS recursion fix, admin-created platform roles, and the non-learner review/certificate-read baseline. Run it once on a new Supabase project only. It is not idempotent: rerunning it on an initialized database can produce duplicate-object errors such as `42710` for `account_status`.
 
-For an existing project, do not rerun `schema.sql`. Apply only migrations that have not already run, in numeric order. Projects that already ran migration `0009` should run [`../supabase/migrations/0010_admin_role_management.sql`](../supabase/migrations/0010_admin_role_management.sql) by itself to enable admin-created platform roles.
+For an existing project, do not rerun `schema.sql`. Apply only migrations that have not already run, in numeric order. Projects that already ran migration `0010` should run [`../supabase/migrations/0011_nonlearner_review_certificate_read.sql`](../supabase/migrations/0011_nonlearner_review_certificate_read.sql) by itself to grant assigned-submission review and read-only certificate access to every role except Learner, including roles created in the future.
 
 ## 2. Deploy the app
 
@@ -21,11 +21,12 @@ For an existing project, do not rerun `schema.sql`. Apply only migrations that h
    | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
    | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key |
    | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key; server-only, never use a `NEXT_PUBLIC_` prefix |
-   | `NEXT_PUBLIC_SITE_URL` | The deployed site URL, such as `https://your-project.vercel.app` |
+   | `NEXT_PUBLIC_SITE_URL` | The deployed site origin, including scheme, such as `https://your-project.vercel.app` |
    | `JOB_RUNNER_SECRET` | Secret for `/api/jobs/run`, if using the job runner |
    | `SIGNED_URL_TTL` | Optional private-storage URL lifetime in seconds; defaults to `300` in `.env.example` |
 
 3. Deploy, then update Supabase's Site URL and Redirect URLs to the final Vercel production URL (and custom domain, if used).
+   Use the full origin, including `https://`, in both Vercel and Supabase. Add `https://your-project.vercel.app/auth/callback` to Supabase Redirect URLs for email verification and password reset links. Bare hostnames can be interpreted as relative paths by Supabase and produce malformed callback URLs.
 4. Confirm the deployment builds and test registration/login, email callback, course browsing, and private file access.
 
 Never commit real environment values. Use the anon/public key in browser-capable settings; the service role key bypasses Row Level Security and must remain a Vercel server-side environment variable.

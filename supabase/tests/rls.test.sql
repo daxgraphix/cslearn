@@ -1,6 +1,6 @@
 -- Run with: supabase test db   (pgTAP). Verifies isolation and privilege rules.
 begin;
-select plan(11);
+select plan(14);
 
 insert into auth.users(id, email, instance_id, aud, role) values
   ('00000000-0000-0000-0000-0000000000a1','learner1@test','00000000-0000-0000-0000-000000000000','authenticated','authenticated'),
@@ -21,6 +21,9 @@ select is((select count(*)::int from profiles), 1, 'learner sees only own profil
 select lives_ok($$select * from cohorts$$, 'cohort member can read cohorts without recursive RLS');
 select lives_ok($$select * from cohort_memberships$$, 'cohort member can read membership without recursive RLS');
 select throws_ok($$select create_platform_role('custom_role','Custom Role','Test role',array['role.assign'])$$, '42501', null, 'learner cannot create platform roles');
+select is((select count(*)::int from role_permissions rp join roles r on r.id = rp.role_id where r.key <> 'learner' and rp.permission_key = 'course.review.assigned'), (select count(*)::int from roles where key <> 'learner'), 'all non-learner roles can review assigned submissions');
+select is((select count(*)::int from role_permissions rp join roles r on r.id = rp.role_id where r.key <> 'learner' and rp.permission_key = 'certificate.read.any'), (select count(*)::int from roles where key <> 'learner'), 'all non-learner roles can read certificates');
+select is((select count(*)::int from role_permissions rp join roles r on r.id = rp.role_id where r.key = 'learner' and rp.permission_key in ('course.review.assigned','certificate.read.any')), 0, 'learner role does not receive staff baseline permissions');
 select throws_ok($$update profiles set status = 'active' where id = '00000000-0000-0000-0000-0000000000a1'$$, '42501', null, 'learner cannot edit status column');
 select throws_ok($$insert into user_roles(user_id, role_id) select auth.uid(), id from roles where key = 'owner'$$, '42501', null, 'learner cannot grant self a role');
 select throws_ok($$select * from answer_keys$$, '42501', null, 'answer keys are not readable from the browser');

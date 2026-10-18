@@ -16,7 +16,7 @@ export default async function RolesPage({ searchParams }: { searchParams: Promis
         <div className="mb-5">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">Role builder</p>
           <h2 id="create-role-heading" className="mt-1 text-xl font-semibold">Create a platform role</h2>
-          <p className="mt-1 max-w-3xl text-sm leading-6 text-ink-soft">Roles can include only permissions you already hold. {catalog.canAssignPrivileged ? "Roles you create are privileged and can only be assigned by a platform owner." : "Roles you create are non-privileged; platform owners alone manage privileged access."}</p>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-ink-soft">All roles except Learner receive assigned-submission review and read-only certificate access. Additional permissions are limited to what you already hold. {catalog.canAssignPrivileged ? "Roles you create are privileged and can only be assigned by a platform owner." : "Roles you create are non-privileged; platform owners alone manage privileged access."}</p>
         </div>
         <form action={createPlatformRoleAction} className="space-y-5">
           <div className="grid gap-4 sm:grid-cols-2">

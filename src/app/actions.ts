@@ -3,6 +3,7 @@ import { headers, cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createSupabase } from "@/lib/supabase/server";
+import { getSiteUrl } from "@/lib/site-url";
 import { run } from "@/lib/action";
 import { rateLimit } from "@/lib/rate-limit";
 import { loginSchema, registerSchema, createCourseSchema, courseMetaSchema, reviewSchema, answersSchema } from "@/lib/validation";
@@ -43,7 +44,7 @@ export async function registerAction(formData: FormData) {
     const supabase = await createSupabase();
     const { data, error } = await supabase.auth.signUp({
       email: parsed.data.email, password: parsed.data.password,
-      options: { data: { full_name: parsed.data.fullName, locale: parsed.data.locale }, emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback` },
+      options: { data: { full_name: parsed.data.fullName, locale: parsed.data.locale }, emailRedirectTo: new URL("/auth/callback", getSiteUrl()).toString() },
     });
     failed = Boolean(error);
     signedIn = Boolean(data.session);
@@ -83,10 +84,26 @@ export async function requestPasswordResetAction(formData: FormData) {
   const rl = rateLimit(`reset:${await clientIp()}`, 3, 15 * 60_000);
   if (rl.ok) {
     try {
-      await (await createSupabase()).auth.resetPasswordForEmail(s(formData, "email"), { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/learner/settings` });
+      const redirectTo = new URL("/auth/callback?next=/reset-password", getSiteUrl()).toString();
+      await (await createSupabase()).auth.resetPasswordForEmail(s(formData, "email"), { redirectTo });
     } catch { /* Keep recovery responses neutral when the auth service is unavailable. */ }
   }
   redirect(`/login?notice=${encodeURIComponent("If an account matches that email, recovery instructions will be sent. Check your inbox and spam folder.")}`);
+}
+export async function updatePasswordAction(formData: FormData) {
+  const password = s(formData, "password");
+  if (password.length < 10 || password.length > 128) {
+    redirect(`/reset-password?error=${encodeURIComponent("Use a password between 10 and 128 characters.")}`);
+  }
+  try {
+    const supabase = await createSupabase();
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) throw error;
+    await supabase.auth.signOut();
+  } catch {
+    redirect(`/reset-password?error=${encodeURIComponent("This reset link may have expired. Request a new one and try again.")}`);
+  }
+  redirect(`/login?notice=${encodeURIComponent("Your password has been updated. Log in with your new password.")}`);
 }
 export async function setLocaleAction(formData: FormData) {
   const l = "en";
