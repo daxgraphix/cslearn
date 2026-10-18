@@ -7,11 +7,12 @@ import { RoleIdentityFields } from "@/components/RoleIdentityFields";
 import { SubmitButton } from "@/components/SubmitButton";
 
 export const metadata = { title: "Roles and access" };
+type PermissionOption = { key: string; description: string };
 
 export default async function RolesPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
   const [params, catalog] = await Promise.all([searchParams, roleCatalog()]);
-  const groups: Record<string, typeof catalog.permissions> = {};
-  for (const permission of catalog.permissions) {
+  const groups: Record<string, PermissionOption[]> = {};
+  for (const permission of catalog.permissions as PermissionOption[]) {
     const group = permission.key.startsWith("course.") ? "Courses" : permission.key.startsWith("grade.") ? "Assessments" :
       permission.key.startsWith("user.") || permission.key.startsWith("role.") || permission.key.startsWith("owner.") ? "People and access" :
       permission.key.startsWith("enrollment.") || permission.key.startsWith("certificate.") || permission.key.startsWith("finance.") ? "Learner records" :
@@ -40,7 +41,7 @@ export default async function RolesPage({ searchParams }: { searchParams: Promis
                 <span>{group}</span><span className="text-xs font-normal text-ink-faint">{permissions.length} {permissions.length === 1 ? "option" : "options"}</span>
               </summary>
               <div className="grid gap-2 border-t border-surface-line bg-surface-muted/30 p-3 sm:grid-cols-2">
-                {permissions.map((permission) => <label key={permission.key} className="flex min-h-14 items-start gap-3 rounded-lg border border-surface-line bg-white p-3 text-sm transition-colors hover:border-brand/40 hover:bg-brand-soft/20">
+                {permissions.map((permission: PermissionOption) => <label key={permission.key} className="flex min-h-14 items-start gap-3 rounded-lg border border-surface-line bg-white p-3 text-sm transition-colors hover:border-brand/40 hover:bg-brand-soft/20">
                   <input type="checkbox" name="permissions" value={permission.key} className="mt-0.5 h-4 w-4 shrink-0 accent-brand" />
                   <span className="min-w-0 font-medium leading-5 text-ink">{permission.description}</span>
                 </label>)}

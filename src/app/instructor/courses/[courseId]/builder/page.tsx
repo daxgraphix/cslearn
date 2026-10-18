@@ -82,13 +82,13 @@ export default async function Builder({ params, searchParams }: { params: Promis
                 <ul className="divide-y divide-surface-line border-t border-surface-line">
                   {lessons.map((l: any, li: number) => { const Icon = ICON[l.type] ?? FileText; const quiz = Array.isArray(l.quizzes) ? l.quizzes[0] : l.quizzes;
                     return (
-                      <li key={l.id} className="flex items-center gap-4 px-6 py-5">
-                        {editable && <div className="flex flex-col"><MoveBtn courseId={courseId} table="lessons" id={l.id} dir="up" disabled={li === 0} /><MoveBtn courseId={courseId} table="lessons" id={l.id} dir="down" disabled={li === lessons.length - 1} /></div>}
-                        <span className={cn("grid h-11 w-11 place-items-center rounded-lg", l.type === "quiz" ? "bg-quiz-soft text-quiz" : "bg-surface-muted text-ink-soft")}><Icon size={20} /></span>
-                        <div className="min-w-0 flex-1"><p className="truncate text-lg font-medium">{l.title}</p>{quiz && <p className="text-sm text-ink-faint">{quiz.questions?.length ?? 0} questions</p>}</div>
-                        <span className={cn("chip", l.type === "quiz" ? "bg-quiz-soft text-quiz" : "bg-surface-muted text-ink-soft")}>{label(l.type)}</span>
-                        {quiz && <Link href={`/instructor/courses/${courseId}/quiz/${quiz.id}`} className="inline-flex items-center gap-2 text-ink hover:text-brand"><ClipboardList size={18} />{editable ? "Edit quiz" : "View quiz"}</Link>}
-                        {editable && <form action={deleteLessonAction}><input type="hidden" name="courseId" value={courseId} /><input type="hidden" name="lessonId" value={l.id} /><button className="rounded-lg p-2 text-danger hover:bg-red-50" aria-label={`Delete lesson ${l.title}`}><Trash2 size={18} /></button></form>}
+                      <li key={l.id} className="flex flex-wrap items-center gap-3 px-4 py-4 sm:flex-nowrap sm:gap-4 sm:px-6 sm:py-5">
+                        {editable && <div className="flex shrink-0 flex-col"><MoveBtn courseId={courseId} table="lessons" id={l.id} dir="up" disabled={li === 0} /><MoveBtn courseId={courseId} table="lessons" id={l.id} dir="down" disabled={li === lessons.length - 1} /></div>}
+                        <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-lg sm:h-11 sm:w-11", l.type === "quiz" ? "bg-quiz-soft text-quiz" : "bg-surface-muted text-ink-soft")}><Icon size={20} /></span>
+                        <div className="min-w-0 flex-1"><p className="break-words text-base font-medium sm:text-lg">{l.title}</p>{quiz && <p className="text-sm text-ink-faint">{quiz.questions?.length ?? 0} questions</p>}</div>
+                        <span className={cn("chip ml-auto shrink-0", l.type === "quiz" ? "bg-quiz-soft text-quiz" : "bg-surface-muted text-ink-soft")}>{label(l.type)}</span>
+                        {quiz && <Link href={`/instructor/courses/${courseId}/quiz/${quiz.id}`} className="inline-flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm text-ink hover:bg-surface-muted hover:text-brand"><ClipboardList size={18} />{editable ? "Edit quiz" : "View quiz"}</Link>}
+                        {editable && <form action={deleteLessonAction}><input type="hidden" name="courseId" value={courseId} /><input type="hidden" name="lessonId" value={l.id} /><button className="min-h-10 rounded-lg p-2 text-danger hover:bg-red-50" aria-label={`Delete lesson ${l.title}`}><Trash2 size={18} /></button></form>}
                       </li>); })}
                 </ul>
                 {editable && (
