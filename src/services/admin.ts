@@ -6,16 +6,27 @@ import { suspendSchema } from "@/lib/validation";
 import { getSiteUrl } from "@/lib/site-url";
 import type { z } from "zod";
 
+function staffReadClient() {
+  try { return createAdminSupabase(); }
+  catch { return null; }
+}
+
 export async function listUsers(search?: string, page = 1) {
   await requirePageAccess("user.read");
-  // Keep this read on the signed-in user's client so the staff-read and role-read
-  // policies constrain the result without requiring the service-role secret.
-  const supabase = await createSupabase();
+  // This directory is staff-only; authorize above, then use the server-only
+  // service client so nested role rows do not disappear under user_roles RLS.
+  let supabase: any = staffReadClient() ?? await createSupabase();
   let q = supabase.from("profiles").select("id, full_name, status, created_at, user_roles(roles(key, name))", { count: "exact" });
   const term = search?.trim().replace(/[%_]/g, "");
   if (term) q = q.ilike("full_name", `%${term}%`);
   const safePage = Math.max(1, Math.floor(page) || 1);
-  const { data, count, error } = await q.order("created_at", { ascending: false }).range((safePage - 1) * 25, safePage * 25 - 1);
+  let { data, count, error } = await q.order("created_at", { ascending: false }).range((safePage - 1) * 25, safePage * 25 - 1);
+  if (error && staffReadClient()) {
+    supabase = await createSupabase();
+    q = supabase.from("profiles").select("id, full_name, status, created_at, user_roles(roles(key, name))", { count: "exact" });
+    if (term) q = q.ilike("full_name", `%${term}%`);
+    ({ data, count, error } = await q.order("created_at", { ascending: false }).range((safePage - 1) * 25, safePage * 25 - 1));
+  }
   if (error) {
     console.error("[admin:list-users]", { code: error.code, message: error.message });
     throw new Error("Could not load the user list. Refresh the page and try again.");
@@ -58,11 +69,20 @@ export async function setRole(userId: string, roleKey: string, grant: boolean, o
 }
 export async function roleCatalog() {
   const user = await requirePermission("role.assign");
-  const supabase = await createSupabase();
-  const [{ data: roles, error: rolesError }, { data: permissions, error: permissionsError }] = await Promise.all([
+  // Permission data is read after the signed-in user's permission check, then
+  // filtered below to only the permissions this actor may grant.
+  let supabase: any = staffReadClient() ?? await createSupabase();
+  let [{ data: roles, error: rolesError }, { data: permissions, error: permissionsError }] = await Promise.all([
     supabase.from("roles").select("id, key, name, description, is_privileged, scope, role_permissions(permission_key)").order("name"),
     supabase.from("permissions").select("key, description").order("key"),
   ]);
+  if ((rolesError || permissionsError) && staffReadClient()) {
+    supabase = await createSupabase();
+    [{ data: roles, error: rolesError }, { data: permissions, error: permissionsError }] = await Promise.all([
+      supabase.from("roles").select("id, key, name, description, is_privileged, scope, role_permissions(permission_key)").order("name"),
+      supabase.from("permissions").select("key, description").order("key"),
+    ]);
+  }
   if (rolesError) throw rolesError;
   if (permissionsError) throw permissionsError;
   return {

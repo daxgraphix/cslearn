@@ -1,5 +1,5 @@
 -- =====================================================================
--- Consolidated schema snapshot: migrations 0001-0016
+-- Consolidated schema snapshot: migrations 0001-0017
 -- Fresh Supabase projects only. Existing projects must apply pending migrations.
 -- =====================================================================
 -- =====================================================================
@@ -1383,7 +1383,10 @@ create policy courses_public_read on courses for select using (
 create policy courses_enrolled_read on courses for select to authenticated using (has_course_access(auth.uid(), id));
 create policy courses_team_read on courses for select to authenticated using (
   is_course_instructor(auth.uid(), id) or current_user_has('course.read.any')
-  or (organization_id is not null and exists (select 1 from organization_memberships m where m.organization_id = courses.organization_id and m.user_id = auth.uid() and m.status = 'active')));
+  or (organization_id is not null and exists (select 1 from organization_memberships m where m.organization_id = courses.organization_id and m.user_id = auth.uid() and m.status = 'active'))
+  or exists (select 1 from course_versions v join course_submissions s on s.version_id = v.id
+    where v.course_id = courses.id and s.status <> 'closed'
+      and (s.assigned_reviewer_id = auth.uid() or current_user_has('course.review.any'))));
 create policy courses_insert on courses for insert to authenticated with check (owner_id = auth.uid() and current_user_has('course.create'));
 create policy courses_update on courses for update to authenticated
   using ((is_course_instructor(auth.uid(), id) and current_user_has('course.update.own')) or current_user_has('course.update.any'));
@@ -1395,7 +1398,8 @@ create policy cv_enrolled_read on course_versions for select to authenticated us
   exists (select 1 from enrollments e where e.version_id = course_versions.id and e.learner_id = auth.uid() and e.status in ('active','completed')));
 create policy cv_team_read on course_versions for select to authenticated using (
   is_course_instructor(auth.uid(), course_id) or current_user_has('course.read.any')
-  or (current_user_has('course.review.assigned') and exists (select 1 from course_submissions s where s.version_id = course_versions.id and s.assigned_reviewer_id = auth.uid())));
+  or exists (select 1 from course_submissions s where s.version_id = course_versions.id and s.status <> 'closed'
+    and (s.assigned_reviewer_id = auth.uid() or current_user_has('course.review.any'))));
 -- Only drafts / changes_requested are writable by authors, never in_review/approved/published.
 create policy cv_author_write on course_versions for update to authenticated
   using (status in ('draft','changes_requested') and is_course_instructor(auth.uid(), course_id) and current_user_has('course.update.own'))
@@ -1413,7 +1417,8 @@ create or replace function version_is_readable(vid uuid) returns boolean languag
      c.published_version_id = v.id
      or is_course_instructor(auth.uid(), v.course_id) or has_permission(auth.uid(),'course.read.any')
      or exists (select 1 from enrollments e where e.version_id = v.id and e.learner_id = auth.uid() and e.status in ('active','completed'))
-     or exists (select 1 from course_submissions s where s.version_id = v.id and s.assigned_reviewer_id = auth.uid())));
+     or exists (select 1 from course_submissions s where s.version_id = v.id and s.status <> 'closed'
+       and (s.assigned_reviewer_id = auth.uid() or has_permission(auth.uid(), 'course.review.any')))));
 $$;
 create or replace function module_version(mid uuid) returns uuid language sql stable security definer set search_path = public as $$
   select version_id from modules where id = mid; $$;
