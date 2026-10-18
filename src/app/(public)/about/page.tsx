@@ -1,0 +1,2 @@
+export const metadata = { title: "About" };
+export default function About() { return (<div className="max-w-prose"><h1 className="text-3xl font-semibold">About</h1><p className="mt-4 text-ink-soft">CSGO delivers reviewed courses, fair assessments, and certificates anyone can verify. Our learning experience is designed for English-language learners who want practical, job-ready knowledge with measurable outcomes.</p></div>); }

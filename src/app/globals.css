@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light; }
+html, body { background: #f6f6f7; color: #1d1f24; }
+body { font-feature-settings: "cv11", "ss01"; -webkit-font-smoothing: antialiased; }
+:focus-visible { outline: 2px solid #2f5ba8; outline-offset: 2px; border-radius: 6px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+@layer components {
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
+  .btn-primary { @apply btn bg-brand text-white hover:bg-brand-dark; }
+  .btn-ghost { @apply btn text-ink hover:bg-surface-muted; }
+  .btn-outline { @apply btn border border-surface-line bg-white text-ink hover:bg-surface-muted; }
+  .btn-danger { @apply btn text-danger hover:bg-red-50; }
+  .card { @apply rounded-xl2 bg-white shadow-card; }
+  .input { @apply w-full rounded-lg border border-surface-line bg-white px-3 py-2.5 text-sm placeholder:text-ink-faint focus:border-brand; }
+  .label { @apply mb-1.5 block text-sm font-medium text-ink; }
+  .chip { @apply inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium; }
+  .table-th { @apply px-4 py-3 text-left text-sm font-medium text-ink-soft; }
+  .table-td { @apply px-4 py-3 text-sm border-t border-surface-line; }
+}

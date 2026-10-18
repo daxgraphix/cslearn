@@ -1,0 +1,2 @@
+import Link from "next/link";
+export default function Forbidden() { return (<main className="grid min-h-screen place-items-center p-4"><div className="card max-w-md p-8 text-center"><h1 className="text-xl font-semibold">You do not have access to this page</h1><p className="mt-2 text-ink-soft">Your account does not include this workspace. Ask an administrator if you need it.</p><Link className="btn-primary mt-5" href="/learner/dashboard">Go to my dashboard</Link></div></main>); }

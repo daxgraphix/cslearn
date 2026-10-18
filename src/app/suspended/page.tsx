@@ -1,0 +1,1 @@
+export default function Suspended() { return (<main className="grid min-h-screen place-items-center p-4"><div className="card max-w-md p-8 text-center"><h1 className="text-xl font-semibold">Your account is suspended</h1><p className="mt-2 text-ink-soft">Your learning history and certificates are kept. Contact support to review the suspension.</p></div></main>); }
