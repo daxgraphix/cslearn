@@ -6,6 +6,21 @@ import { suspendSchema } from "@/lib/validation";
 import { getSiteUrl } from "@/lib/site-url";
 import type { z } from "zod";
 
+export type Role = {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  is_privileged: boolean;
+  scope: string;
+  role_permissions: { permission_key: string }[];
+};
+
+export type Permission = {
+  key: string;
+  description: string;
+};
+
 function staffReadClient() {
   try { return createAdminSupabase(); }
   catch { return null; }
@@ -107,9 +122,9 @@ export async function roleCatalog() {
   if (rolesError) throw rolesError;
   if (permissionsError) throw permissionsError;
   return {
-    roles: roles ?? [],
-    permissions: (permissions ?? []).filter((permission) => user.permissions.has(permission.key)),
-    permissionDescriptions: Object.fromEntries((permissions ?? []).map((permission) => [permission.key, permission.description])),
+    roles: (roles ?? []) as Role[],
+    permissions: ((permissions ?? []) as Permission[]).filter((permission) => user.permissions.has(permission.key)),
+    permissionDescriptions: Object.fromEntries(((permissions ?? []) as Permission[]).map((permission) => [permission.key, permission.description])),
     canAssignPrivileged: user.permissions.has("role.assign.privileged"),
   };
 }

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { listUsers, roleCatalog } from "@/services/admin";
+import { listUsers, roleCatalog, type Role } from "@/services/admin";
 import { getSessionUser } from "@/lib/auth";
 import { PageHeader, Table, Badge, Empty } from "@/components/ui";
 import { Flash } from "@/components/Flash";
