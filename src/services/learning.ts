@@ -16,16 +16,32 @@ export async function enroll(courseId: string) {
 export async function myLearning() {
   const user = await requireUser();
   const supabase = await createSupabase();
-  const { data: enrollments } = await supabase.from("enrollments")
+  const { data: enrollmentRows } = await supabase.from("enrollments")
     .select("id, status, enrolled_at, completed_at, version_id, courses(id, slug), course_versions(title, thumbnail_path)")
     .eq("learner_id", user.id).order("enrolled_at", { ascending: false });
-  const out = [] as any[];
-  for (const e of (enrollments ?? []) as any[]) {
-    const { data: required } = await supabase.from("lessons").select("id, modules!inner(version_id)").eq("modules.version_id", e.version_id).eq("is_required", true);
-    const { data: done } = await supabase.from("lesson_progress").select("lesson_id").eq("enrollment_id", e.id).eq("status", "completed");
-    out.push({ ...e, progress: courseProgress((required ?? []).map((r) => r.id), new Set((done ?? []).map((d) => d.lesson_id))) });
+  const enrollments = (enrollmentRows ?? []) as any[];
+  if (!enrollments.length) return [];
+  const versionIds = [...new Set(enrollments.map((e) => e.version_id).filter(Boolean))];
+  const enrollmentIds = enrollments.map((e) => e.id);
+  const [{ data: requiredRows }, { data: completedRows }] = await Promise.all([
+    supabase.from("lessons").select("id, modules!inner(version_id)").in("modules.version_id", versionIds).eq("is_required", true),
+    supabase.from("lesson_progress").select("enrollment_id, lesson_id").in("enrollment_id", enrollmentIds).eq("status", "completed"),
+  ]);
+  const requiredByVersion = new Map<string, string[]>();
+  for (const row of (requiredRows ?? []) as any[]) {
+    const versionId = Array.isArray(row.modules) ? row.modules[0]?.version_id : row.modules?.version_id;
+    if (versionId) requiredByVersion.set(versionId, [...(requiredByVersion.get(versionId) ?? []), row.id]);
   }
-  return out;
+  const completedByEnrollment = new Map<string, Set<string>>();
+  for (const row of completedRows ?? []) {
+    const set = completedByEnrollment.get(row.enrollment_id) ?? new Set<string>();
+    set.add(row.lesson_id);
+    completedByEnrollment.set(row.enrollment_id, set);
+  }
+  return enrollments.map((enrollment) => ({
+    ...enrollment,
+    progress: courseProgress(requiredByVersion.get(enrollment.version_id) ?? [], completedByEnrollment.get(enrollment.id) ?? new Set()),
+  }));
 }
 
 /** Course player payload: re-verifies enrollment server-side and never includes answer keys. */

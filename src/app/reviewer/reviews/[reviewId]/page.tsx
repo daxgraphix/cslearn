@@ -6,13 +6,13 @@ import { decideAction, commentAction } from "@/app/actions";
 export const metadata = { title: "Review" };
 export default async function Review({ params, searchParams }: { params: Promise<{ reviewId: string }>; searchParams: Promise<{ error?: string }> }) {
   const { reviewId } = await params; const sp = await searchParams;
-  const s: any = await getReviewDetail(reviewId); if (!s) notFound(); const v = s.course_versions;
+  const s: any = await getReviewDetail(reviewId); if (!s?.course_versions) notFound(); const v = s.course_versions;
   const summaryError = sp.error?.toLowerCase().includes("summary") ?? false;
   const modules = [...(v.modules ?? [])].sort((a: any, b: any) => a.position - b.position);
   return (<div className="grid gap-6 lg:grid-cols-[1fr_360px]"><div>
     <PageHeader title={v.title} subtitle={`Version ${v.version_number}`} actions={<Badge status={v.status} />} /><Flash error={sp.error} />
     <section className="card mb-4 p-5"><h2 className="font-semibold">Checklist</h2><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-soft"><li>Learning objectives are clear and measurable</li><li>Content is accurate and accessible (captions, alt text, headings)</li><li>Assessments align with the objectives and pass mark</li><li>Resources open and are appropriately licensed</li></ul></section>
-    {modules.map((m: any) => (<section key={m.id} className="card mb-3 p-5"><h3 className="font-semibold">{m.title}</h3><ul className="mt-2 space-y-1 text-sm">{[...m.lessons].sort((a: any, b: any) => a.position - b.position).map((l: any) => <li key={l.id} className="flex justify-between"><span>{l.title}</span><span className="text-ink-faint">{l.type}</span></li>)}</ul></section>))}
+    {modules.length === 0 ? <section className="card mb-3 p-5"><h2 className="font-semibold">No lesson modules yet</h2><p className="mt-1 text-sm text-ink-soft">This submission does not contain course lessons to review.</p></section> : modules.map((m: any) => (<section key={m.id} className="card mb-3 p-5"><h3 className="font-semibold">{m.title}</h3><ul className="mt-2 space-y-1 text-sm">{[...(m.lessons ?? [])].sort((a: any, b: any) => a.position - b.position).map((l: any) => <li key={l.id} className="flex justify-between"><span>{l.title}</span><span className="text-ink-faint">{l.type}</span></li>)}</ul></section>))}
   </div>
   <aside className="space-y-4">
     <form action={decideAction} className="card space-y-3 p-5"><h2 className="font-semibold">Decision</h2><input type="hidden" name="submissionId" value={reviewId} />

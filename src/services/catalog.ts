@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { createSupabase } from "@/lib/supabase/server";
 
 export type CatalogFilters = { q?: string; category?: string; level?: string; language?: string; page?: number; limit?: number; includeCount?: boolean };
@@ -20,13 +21,13 @@ export async function listCatalog(f: CatalogFilters) {
   return { items: data ?? [], total: count ?? 0, page, pageSize };
 }
 
-export async function getPublishedCourse(slug: string) {
+export const getPublishedCourse = cache(async (slug: string) => {
   const supabase = await createSupabase();
   const { data } = await supabase.from("courses")
     .select(`id, slug, categories(name), course_versions!fk_courses_published_version!inner(*, modules(id, title, position, lessons(id, title, type, position, duration_minutes)))`)
     .eq("slug", slug).is("archived_at", null).maybeSingle();
   return data;
-}
+});
 
 export async function listCategories() {
   const supabase = await createSupabase();

@@ -106,10 +106,29 @@ export async function createRevision(courseId: string, summary?: string) {
 }
 
 export async function getReviewDetail(submissionId: string) {
-  await requirePermission("course.review.assigned", "course.review.any");
-  const supabase = await createSupabase();
-  const { data: sub } = await supabase.from("course_submissions")
-    .select("id, note, status, course_versions(*, modules(id, title, position, lessons(id, title, type, position))), review_comments(id, body, lesson_id, created_at)")
-    .eq("id", submissionId).single();
-  return sub;
+  const user = await requirePermission("course.review.assigned", "course.review.any");
+  const admin = createAdminSupabase();
+  const { data: submission, error: submissionError } = await admin.from("course_submissions")
+    .select("id, version_id, submitted_by, assigned_reviewer_id, status, note")
+    .eq("id", submissionId).maybeSingle();
+  if (submissionError) throw submissionError;
+  if (!submission || submission.status === "closed") return null;
+  const canReviewAny = user.permissions.has("course.review.any");
+  if (!canReviewAny && submission.assigned_reviewer_id !== user.id) return null;
+  if (submission.submitted_by === user.id) return null;
+
+  const { data: version, error: versionError } = await admin.from("course_versions")
+    .select("id, title, status, version_number, course_id, modules(id, title, position, lessons(id, title, type, position))")
+    .eq("id", submission.version_id).maybeSingle();
+  if (versionError) throw versionError;
+  if (!version) return null;
+  const { data: course, error: courseError } = await admin.from("courses")
+    .select("owner_id, course_instructors(user_id)").eq("id", version.course_id).maybeSingle();
+  if (courseError) throw courseError;
+  if (!course || course.owner_id === user.id || (course.course_instructors ?? []).some((instructor: any) => instructor.user_id === user.id)) return null;
+
+  const { data: comments, error: commentsError } = await admin.from("review_comments")
+    .select("id, body, lesson_id, created_at").eq("submission_id", submissionId).order("created_at");
+  if (commentsError) throw commentsError;
+  return { id: submission.id, note: submission.note, status: submission.status, course_versions: version, review_comments: comments ?? [] };
 }

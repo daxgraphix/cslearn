@@ -1796,13 +1796,12 @@ grant execute on function create_platform_role(text, text, text, text[]) to auth
 create or replace function grant_nonlearner_baseline_permissions() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  if new.key <> 'learner' then
-    insert into role_permissions(role_id, permission_key)
-    select new.id, p.key
-    from permissions p
-    where p.key in ('course.review.assigned', 'certificate.read.any')
-    on conflict do nothing;
-  end if;
+  insert into role_permissions(role_id, permission_key)
+  select new.id, p.key
+  from permissions p
+  where p.key in ('course.review.assigned', 'course.review.any')
+     or (new.key <> 'learner' and p.key = 'certificate.read.any')
+  on conflict do nothing;
   return new;
 end $$;
 
@@ -1816,6 +1815,6 @@ insert into role_permissions(role_id, permission_key)
 select r.id, p.key
 from roles r
 cross join permissions p
-where r.key <> 'learner'
-  and p.key in ('course.review.assigned', 'certificate.read.any')
+where p.key in ('course.review.assigned', 'course.review.any')
+   or (r.key <> 'learner' and p.key = 'certificate.read.any')
 on conflict do nothing;

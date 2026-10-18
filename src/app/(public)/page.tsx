@@ -5,7 +5,14 @@ import { getT } from "@/i18n";
 import { getSessionUser } from "@/lib/auth";
 import { defaultWorkspacePath, portalsFor } from "@/lib/permissions";
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 import { ArrowRight, Award, BookOpenCheck, BriefcaseBusiness, Compass, ShieldCheck, Users } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "Practical Online Courses and Verified Certificates",
+  description: "Build practical skills with structured courses, clear learning paths, assessments, and certificates that anyone can verify.",
+  alternates: { canonical: "/" },
+};
 
 export default async function Home() {
   const user = await getSessionUser();
