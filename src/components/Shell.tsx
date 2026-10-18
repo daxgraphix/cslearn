@@ -45,7 +45,7 @@ const TITLES: Record<Portal, string> = { learner: "Learner", instructor: "Instru
 export async function Shell({ portal, portals, name, children }: { portal: Portal; portals: Portal[]; name: string; children: React.ReactNode }) {
   const t = await getT();
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-surface-muted/30">
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto border-r border-surface-line bg-white px-3 py-4 md:flex" aria-label="Primary">
         <Link href="/" className="mb-5 flex items-center gap-2 px-3 text-lg font-semibold text-brand">
           <span className="grid h-8 w-10 place-items-center rounded-md border-2 border-ok text-[9px] font-bold">CSGO</span>{t("app.name")}
@@ -70,7 +70,7 @@ export async function Shell({ portal, portals, name, children }: { portal: Porta
           <form action={logoutAction}><button className="text-brand hover:underline">{t("nav.logout")}</button></form>
         </div>
       </aside>
-      <div className="min-w-0 flex-1">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-surface-line bg-white px-4 py-2.5 md:hidden">
           <div className="flex min-w-0 items-center gap-2.5">
             <Link href="/" className="grid h-8 w-10 shrink-0 place-items-center rounded-md border-2 border-ok text-[9px] font-bold text-brand" aria-label="CSGO home">CSGO</Link>
@@ -96,7 +96,17 @@ export async function Shell({ portal, portals, name, children }: { portal: Porta
             </div>
           </details>
         </header>
-        <main id="main" className="min-w-0 p-4 md:p-8">{children}</main>
+        <main id="main" className="min-w-0 flex-1 p-4 md:p-8">{children}</main>
+        <footer className="mt-auto border-t border-surface-line bg-white">
+          <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-4 text-xs text-ink-faint sm:flex-row sm:items-center sm:justify-between md:px-8">
+            <span>CSGO · {TITLES[portal]} workspace</span>
+            <nav aria-label="Workspace footer" className="flex flex-wrap gap-x-5 gap-y-2">
+              <Link href="/courses" className="hover:text-brand">Course catalog</Link>
+              <Link href="/help" className="hover:text-brand">Help center</Link>
+              <Link href="/" className="hover:text-brand">Public site</Link>
+            </nav>
+          </div>
+        </footer>
       </div>
     </div>
   );

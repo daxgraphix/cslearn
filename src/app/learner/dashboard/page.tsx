@@ -13,7 +13,7 @@ export default async function Dashboard() {
       ? [{ title: "Keep the platform healthy", text: "Review queue health, manage roles, and monitor operations in one place.", href: "/admin/dashboard" }]
       : [{ title: "Choose your next win", text: "Pick a focused course to build momentum and keep your streak going.", href: "/courses" }];
   return (<>
-    <PageHeader title={t("nav.dashboard")} actions={<Link className="btn-primary" href="/courses">{t("nav.catalog")}</Link>} />
+    <PageHeader title={t("nav.dashboard")} subtitle="Your learning progress and recommended next step." actions={<Link className="btn-primary" href="/courses">{t("nav.catalog")}</Link>} />
     <div className="grid gap-4 sm:grid-cols-3"><Stat label="In progress" value={active.length} /><Stat label="Completed" value={done.length} /><Stat label="Total enrolled" value={items.length} /></div>
 
     <div className="mt-6 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
