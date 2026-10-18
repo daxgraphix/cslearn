@@ -25,8 +25,12 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   if (!profile) return null;
   const roles: RoleKey[] = []; const grants = new Set<string>();
   for (const ur of (urs ?? []) as any[]) {
-    roles.push(ur.roles.key);
-    for (const rp of ur.roles.role_permissions) grants.add(rp.permission_key);
+    const role = Array.isArray(ur.roles) ? ur.roles[0] : ur.roles;
+    // A deleted or malformed role relation must not crash every authenticated
+    // workspace while resolving the user's session.
+    if (!role?.key) continue;
+    roles.push(role.key);
+    for (const rp of role.role_permissions ?? []) if (rp?.permission_key) grants.add(rp.permission_key);
   }
   for (const d of denials ?? []) grants.delete(d.permission_key);
   return {

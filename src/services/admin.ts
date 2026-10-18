@@ -170,7 +170,8 @@ export async function inviteUser(input: unknown) {
 export async function overview() {
   await requirePermission("report.read");
   const supabase = await createSupabase();
-  const { data } = await supabase.rpc("platform_overview");
+  const { data, error } = await supabase.rpc("platform_overview");
+  if (error) console.error("[admin:platform-overview]", { code: error.code, message: error.message });
   return (data as any[])?.[0] ?? null;
 }
 export async function auditLog(page = 1) {

@@ -31,7 +31,7 @@ export default async function Dashboard() {
       <Link href="/learner/my-learning" className="card block p-5 transition duration-150 hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">Learning momentum</p>
         <h2 className="mt-2 text-xl font-semibold">{active.length > 0 ? `${active.length} active path${active.length > 1 ? "s" : ""}` : "Ready to begin"}</h2>
-        <p className="mt-2 text-sm text-ink-soft">The best progress comes from short, consistent steps. Keep your learning streak alive with one focused lesson today.</p>
+        <p className="mt-2 text-sm text-ink-soft">Build a steady learning habit with one focused lesson at a time. Pick up where you left off whenever you’re ready.</p>
         <span className="mt-3 inline-flex text-sm font-medium text-brand">View my learning →</span>
       </Link>
     </div>
