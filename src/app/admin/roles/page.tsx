@@ -8,11 +8,22 @@ import { SubmitButton } from "@/components/SubmitButton";
 
 export const metadata = { title: "Roles and access" };
 type PermissionOption = { key: string; description: string };
+type RoleOption = {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  is_privileged: boolean;
+  scope: string;
+  role_permissions: { permission_key: string }[];
+};
 
 export default async function RolesPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
   const [params, catalog] = await Promise.all([searchParams, roleCatalog()]);
   const groups: Record<string, PermissionOption[]> = {};
-  for (const permission of catalog.permissions as PermissionOption[]) {
+  const permissions = catalog.permissions as PermissionOption[];
+  const roles = catalog.roles as RoleOption[];
+  for (const permission of permissions) {
     const group = permission.key.startsWith("course.") ? "Courses" : permission.key.startsWith("grade.") ? "Assessments" :
       permission.key.startsWith("user.") || permission.key.startsWith("role.") || permission.key.startsWith("owner.") ? "People and access" :
       permission.key.startsWith("enrollment.") || permission.key.startsWith("certificate.") || permission.key.startsWith("finance.") ? "Learner records" :
@@ -58,7 +69,7 @@ export default async function RolesPage({ searchParams }: { searchParams: Promis
         <p className="mt-1 text-sm text-ink-soft">Open a role to review its access before assigning it.</p>
       </div>
       {catalog.roles.length === 0 ? <div className="card border border-surface-line p-5 text-sm text-ink-soft">No roles are available yet.</div> :
-        <ul className="grid gap-3 lg:grid-cols-2">{catalog.roles.map((role) => <li key={role.id}>
+        <ul className="grid gap-3 lg:grid-cols-2">{roles.map((role) => <li key={role.id}>
           <article className="card h-full border border-surface-line p-4 sm:p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0"><h3 className="font-semibold text-ink">{role.name}</h3>{role.description && <p className="mt-1 text-sm leading-5 text-ink-soft">{role.description}</p>}</div>
@@ -74,7 +85,7 @@ export default async function RolesPage({ searchParams }: { searchParams: Promis
             </details>
             {(() => {
               const builtIn = new Set(["owner", "admin", "learner", "instructor", "reviewer", "support", "org_manager", "certificate_officer", "assessment_moderator", "auditor", "enrollment_manager", "finance"]);
-              const canEdit = !builtIn.has(role.key) && (!role.is_privileged || catalog.canAssignPrivileged) && role.role_permissions.every((item) => catalog.permissions.some((permission) => permission.key === item.permission_key));
+              const canEdit = !builtIn.has(role.key) && (!role.is_privileged || catalog.canAssignPrivileged) && role.role_permissions.every((item) => permissions.some((permission) => permission.key === item.permission_key));
               if (!canEdit) return <p className="mt-3 text-xs text-ink-faint">{builtIn.has(role.key) ? "System role · editing is locked" : "Ask an owner to edit this role’s access."}</p>;
               return <details className="mt-3 border-t border-surface-line pt-3">
                 <summary className="cursor-pointer text-sm font-medium text-brand">Edit role</summary>
@@ -82,7 +93,7 @@ export default async function RolesPage({ searchParams }: { searchParams: Promis
                   <input type="hidden" name="key" value={role.key} />
                   <label className="label">Role name<input name="name" defaultValue={role.name} className="input mt-1" required minLength={2} maxLength={100} /></label>
                   <label className="label">Description<input name="description" defaultValue={role.description ?? ""} className="input mt-1" maxLength={300} /></label>
-                  <fieldset><legend className="label">Permissions</legend><div className="grid gap-2 sm:grid-cols-2">{catalog.permissions.map((permission) => <label key={permission.key} className="flex items-start gap-2 rounded-lg border border-surface-line p-3 text-sm"><input type="checkbox" name="permissions" value={permission.key} defaultChecked={role.role_permissions.some((item) => item.permission_key === permission.key)} className="mt-0.5 accent-brand" /><span>{permission.description}</span></label>)}</div></fieldset>
+                  <fieldset><legend className="label">Permissions</legend><div className="grid gap-2 sm:grid-cols-2">{permissions.map((permission) => <label key={permission.key} className="flex items-start gap-2 rounded-lg border border-surface-line p-3 text-sm"><input type="checkbox" name="permissions" value={permission.key} defaultChecked={role.role_permissions.some((item) => item.permission_key === permission.key)} className="mt-0.5 accent-brand" /><span>{permission.description}</span></label>)}</div></fieldset>
                   <SubmitButton className="btn-primary" pendingLabel="Saving role…">Save role changes</SubmitButton>
                 </form>
               </details>;
